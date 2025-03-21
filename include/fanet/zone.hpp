@@ -44,14 +44,14 @@ namespace FANET
     class Zone final
     {
     public:
-        const etl::ivector<ZoneRegion> &zones;
+        const etl::span<const ZoneRegion> zones;
 
         // Default constructor uses default zones
         Zone() : zones(DEFAULT_ZONES) {}
 
         // Constructor with custom zones
         // When you create your own custom zones you must end it with FANET::DEFAULT_ZONE
-        Zone(const etl::ivector<ZoneRegion> &custom_zones) : zones(custom_zones) {}
+        Zone(const etl::span<ZoneRegion> &custom_zones) : zones(custom_zones) {}
 
         /**
          * @brief Based on latitude and longitude find the current zone. When teh zone is known,

@@ -13,10 +13,10 @@
 
 namespace FANET
 {
-    template <size_t MESSAGESIZE, size_t NAMESIZE>
-    using PayloadVariant = etl::variant<TrackingPayload, NamePayload<NAMESIZE>, MessagePayload<MESSAGESIZE>, GroundTrackingPayload>;
+    template <size_t MAXFRAMESIZE>
+    using PayloadVariant = etl::variant<TrackingPayload, NamePayload<MAXFRAMESIZE>, MessagePayload<MAXFRAMESIZE>, GroundTrackingPayload>;
 
-    template <size_t MESSAGESIZE, size_t NAMESIZE>
+    template <size_t MAXFRAMESIZE>
     class Packet
     {
     private:
@@ -46,11 +46,11 @@ namespace FANET
         etl::optional<Address> destination_;
         etl::optional<ExtendedHeader> extendedHeader_;
         etl::optional<uint32_t> signature_;
-        etl::optional<PayloadVariant<MESSAGESIZE, NAMESIZE>> payload_;
+        etl::optional<PayloadVariant<MAXFRAMESIZE>> payload_;
 
     public:
         Packet() = default;
-        Packet(Header h, Address s, etl::optional<Address> d, etl::optional<ExtendedHeader> e, etl::optional<uint32_t> sig, etl::optional<PayloadVariant<MESSAGESIZE, NAMESIZE>> p)
+        Packet(Header h, Address s, etl::optional<Address> d, etl::optional<ExtendedHeader> e, etl::optional<uint32_t> sig, etl::optional<PayloadVariant<MAXFRAMESIZE>> p)
             : header_(h), source_(s), destination_(d), extendedHeader_(e), signature_(sig), payload_(p) {}
 
         const Header &header() const { return header_; }
@@ -58,7 +58,7 @@ namespace FANET
         const etl::optional<Address> &destination() const { return destination_; }
         const etl::optional<ExtendedHeader> &extendedHeader() const { return extendedHeader_; }
         const etl::optional<uint32_t> &signature() const { return signature_; }
-        const etl::optional<PayloadVariant<MESSAGESIZE, NAMESIZE>> &payload() const { return payload_; }
+        const etl::optional<PayloadVariant<MAXFRAMESIZE>> &payload() const { return payload_; }
 
         Packet &source(const Address &source)
         {
@@ -159,28 +159,28 @@ namespace FANET
         Packet &payload(const TrackingPayload &trackingPayload)
         {
             header_.type(trackingPayload.type());
-            payload_ = PayloadVariant<MESSAGESIZE, NAMESIZE>(trackingPayload);
+            payload_ = PayloadVariant<MAXFRAMESIZE>(trackingPayload);
             return *this;
         }
 
         Packet &payload(const GroundTrackingPayload &groundTrackingPayload)
         {
             header_.type(groundTrackingPayload.type());
-            payload_ = PayloadVariant<MESSAGESIZE, NAMESIZE>(groundTrackingPayload);
+            payload_ = PayloadVariant<MAXFRAMESIZE>(groundTrackingPayload);
             return *this;
         }
 
-        Packet &payload(const MessagePayload<MESSAGESIZE> &messagePayload)
+        Packet &payload(const MessagePayload<MAXFRAMESIZE> &messagePayload)
         {
             header_.type(messagePayload.type());
-            payload_ = PayloadVariant<MESSAGESIZE, NAMESIZE>(messagePayload);
+            payload_ = PayloadVariant<MAXFRAMESIZE>(messagePayload);
             return *this;
         }
 
-        Packet &payload(const NamePayload<NAMESIZE> &namePayload)
+        Packet &payload(const NamePayload<MAXFRAMESIZE> &namePayload)
         {
             header_.type(namePayload.type());
-            payload_ = PayloadVariant<MESSAGESIZE, NAMESIZE>(namePayload);
+            payload_ = PayloadVariant<MAXFRAMESIZE>(namePayload);
             return *this;
         }
 

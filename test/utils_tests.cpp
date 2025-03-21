@@ -106,11 +106,11 @@ TEST_CASE("toScaled climbRate", "[Utils]")
 
 TEST_CASE("toScaled turnRate", "[Utils]")
 {
-    auto result = toScaled<int16_t, etl::ratio<1, 4>, etl::ratio<1, 1>, 7>(-2.5f);
+    auto result = toScaled<int16_t, etl::ratio<1, 4>, etl::ratio<1>, 7>(-2.5f);
     REQUIRE(result.scaled == false);
     REQUIRE(result.value == turnRate_Origional(-2.5f));
 
-    result = toScaled<int16_t, etl::ratio<1, 4>, etl::ratio<1, 1>, 7>(30.f);
+    result = toScaled<int16_t, etl::ratio<1, 4>, etl::ratio<1>, 7>(30.f);
     REQUIRE(result.scaled == true);
     REQUIRE(result.value == turnRate_Origional(30.f));
 }
@@ -130,11 +130,11 @@ TEST_CASE("toScaled speed", "[Utils]")
 
 TEST_CASE("toScaled altitude", "[Utils]")
 {
-    auto result = toScaled<uint16_t, etl::ratio<1, 1>, etl::ratio<4, 1>, 11>(1500.f);
+    auto result = toScaled<uint16_t, etl::ratio<1>, etl::ratio<4, 1>, 11>(1500.f);
     REQUIRE(result.scaled == false);
     REQUIRE(result.value == altitude_Origional(1500.f));
 
-    result = toScaled<uint16_t, etl::ratio<1, 1>, etl::ratio<4, 1>, 11>(5000.f);
+    result = toScaled<uint16_t, etl::ratio<1>, etl::ratio<4, 1>, 11>(5000.f);
     REQUIRE(result.scaled == true);
     REQUIRE(result.value == altitude_Origional(5000.f));
 }

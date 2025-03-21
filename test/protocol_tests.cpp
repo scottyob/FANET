@@ -15,16 +15,16 @@ auto RSSI_LOW = -70;
 class TestProtocol : public Protocol
 {
 public:
-    TestProtocol(Connector &connector_) : Protocol(connector_)
+    TestProtocol(Connector* connector_) : Protocol(connector_)
     {
     }
 
-    TxFrame *getNextTxFrameWrap(uint32_t timeMs)
+    TxFrame<uint8_t> *getNextTxFrameWrap(uint32_t timeMs)
     {
         return getNextTxFrame(timeMs);
     }
 
-    void deleteTxFrame(TxFrame *frm)
+    void deleteTxFrame(TxFrame<uint8_t> *frm)
     {
         txPool.remove(frm);
     }
@@ -49,19 +49,20 @@ public:
     bool sendFrameReceived = false;
     uint32_t TICK_TIME = 3;
 
-    virtual uint32_t getTick() const override
+    virtual uint32_t fanet_getTick() const override
     {
         return TICK_TIME;
     }
 
-    virtual void ackReceived(uint16_t id) override
+    virtual void fanet_ackReceived(uint16_t id) override
     {
         printf("============= > Ack Received %d\n", id);
         receivedAckId = id;
         receivedAckTotal++;
     }
 
-    virtual bool sendFrame(uint8_t codingRate, const etl::span<uint8_t> &data) override
+
+    virtual bool fanet_sendFrame(uint8_t codingRate, const etl::span<const uint8_t> data) override
     {
         sendFrameReceived = true;
         return sendFrameResult;
@@ -76,7 +77,7 @@ public:
     TrackingPayload payload;
 
     TestFixture()
-        : protocol(app)
+        : protocol(&app)
     {
         protocol.ownAddress(OWN_ADDRESS);
         payload.altitude(1000).climbRate(12);
@@ -90,14 +91,14 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
     {
         SECTION("Adds in neighborTable", "[Protocol]")
         {
-            auto v = Packet<1, 1>().source(OTHER_ADDRESS_66).destination(OTHER_ADDRESS_55).payload(payload).build();
-            protocol.handleRx<100, 100>(RSSI_HIGH, v);
+            auto v = Packet<1>().source(OTHER_ADDRESS_66).destination(OTHER_ADDRESS_55).payload(payload).build();
+            protocol.handleRx(RSSI_HIGH, v);
             REQUIRE(protocol.neighborTable().lastSeen(OTHER_ADDRESS_66) == 3);
 
             SECTION("Update last seen")
             {
                 app.TICK_TIME = 10;
-                protocol.handleRx<100, 100>(0, v);
+                protocol.handleRx(0, v);
 
                 REQUIRE(protocol.neighborTable().lastSeen(OTHER_ADDRESS_66) == 10);
                 REQUIRE(protocol.neighborTable().size() == 1);
@@ -106,8 +107,8 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
             SECTION("Cleanup called")
             {
                 app.TICK_TIME = 20 + (4 * 60 * 1000 + 10'000); // NEIGHBOR_MAX_TIMEOUT_MS
-                auto other = Packet<1, 1>().source(OTHER_ADDRESS_55).destination(OTHER_ADDRESS_66).payload(payload).build();
-                protocol.handleRx<100, 100>(RSSI_HIGH, other);
+                auto other = Packet<1>().source(OTHER_ADDRESS_55).destination(OTHER_ADDRESS_66).payload(payload).build();
+                protocol.handleRx(RSSI_HIGH, other);
 
                 REQUIRE(protocol.neighborTable().lastSeen(OTHER_ADDRESS_55) == app.TICK_TIME);
                 REQUIRE(protocol.neighborTable().lastSeen(OTHER_ADDRESS_66) == 0);
@@ -117,18 +118,18 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
     SECTION("Ignores Own Address")
     {
-        auto v = Packet<1, 1>().source(OWN_ADDRESS).payload(payload).build();
-        protocol.handleRx<100, 100>(RSSI_HIGH, v);
+        auto v = Packet<1>().source(OWN_ADDRESS).payload(payload).build();
+        protocol.handleRx(RSSI_HIGH, v);
         REQUIRE(protocol.pool().getAllocatedBlocks().size() == 0);
         REQUIRE(protocol.neighborTable().size() == 0);
     }
 
     SECTION("Init should clean ")
     {
-        auto v = Packet<1, 1>().source(OTHER_ADDRESS_55).payload(payload).build();
-        protocol.handleRx<100, 100>(RSSI_HIGH, v);
+        auto v = Packet<1>().source(OTHER_ADDRESS_55).payload(payload).build();
+        protocol.handleRx(RSSI_HIGH, v);
         REQUIRE(protocol.neighborTable().size() == 1);
-        auto packet = Packet<1, 1>().payload(payload).destination(OTHER_ADDRESS_55).singleHop();
+        auto packet = Packet<1>().payload(payload).destination(OTHER_ADDRESS_55).singleHop();
         protocol.sendPacket(packet, 0, true);
         REQUIRE(protocol.pool().getAllocatedBlocks().size() == 1);
 
@@ -143,8 +144,8 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
         {
             SECTION("No Ack requested, should not ack")
             {
-                auto v = Packet<1, 1>().source(OTHER_ADDRESS_55).payload(payload).build();
-                protocol.handleRx<100, 100>(RSSI_HIGH, v);
+                auto v = Packet<1>().source(OTHER_ADDRESS_55).payload(payload).build();
+                protocol.handleRx(RSSI_HIGH, v);
 
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 0);
                 REQUIRE(protocol.neighborTable().lastSeen(OTHER_ADDRESS_55) == 3);
@@ -152,9 +153,10 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
             SECTION("Ack over single Hop, should ack without forward")
             {
-                auto v = Packet<1, 1>().source(OTHER_ADDRESS_55).payload(payload).singleHop().build();
-                protocol.handleRx<100, 100>(RSSI_HIGH, v);
+                auto v = Packet<1>().source(OTHER_ADDRESS_55).payload(payload).singleHop().build();
+                auto resultType = protocol.handleRx(RSSI_HIGH, v);
 
+                REQUIRE(resultType == payload.type());
                 auto poolItem = findByAddress(protocol, OTHER_ADDRESS_55, OWN_ADDRESS);
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 1);
                 REQUIRE(protocol.neighborTable().lastSeen(OTHER_ADDRESS_55) == 3);
@@ -172,12 +174,13 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
             SECTION("Ack over Two Hop, should ack with forward")
             {
-                auto v = Packet<1, 1>().source(OTHER_ADDRESS_55).payload(payload).twoHop().build();
-                protocol.handleRx<100, 100>(RSSI_HIGH, v);
+                auto v = Packet<1>().source(OTHER_ADDRESS_55).payload(payload).twoHop().build();
+                protocol.handleRx(RSSI_HIGH, v);
 
                 auto poolItem = findByAddress(protocol, OTHER_ADDRESS_55, OWN_ADDRESS);
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 1);
                 REQUIRE(protocol.neighborTable().lastSeen(OTHER_ADDRESS_55) == 3);
+                dumpHex(poolItem->data());
                 REQUIRE(makeVectorS<100>(poolItem->data()) == makeVector({
                                                                   0xC0,
                                                                   0x11,
@@ -195,8 +198,8 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
         {
             SECTION("No Ack requested, should not ack")
             {
-                auto v = Packet<1, 1>().source(OTHER_ADDRESS_55).destination(OWN_ADDRESS).payload(payload).build();
-                protocol.handleRx<100, 100>(0, v);
+                auto v = Packet<1>().source(OTHER_ADDRESS_55).destination(OWN_ADDRESS).payload(payload).build();
+                protocol.handleRx(0, v);
 
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 0);
                 REQUIRE(protocol.neighborTable().lastSeen(OTHER_ADDRESS_55) == 3);
@@ -204,8 +207,8 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
             SECTION("Ack over single Hop, should ack without forward")
             {
-                auto v = Packet<1, 1>().source(OTHER_ADDRESS_55).payload(payload).destination(OWN_ADDRESS).singleHop().build();
-                protocol.handleRx<100, 100>(RSSI_HIGH, v);
+                auto v = Packet<1>().source(OTHER_ADDRESS_55).payload(payload).destination(OWN_ADDRESS).singleHop().build();
+                protocol.handleRx(RSSI_HIGH, v);
 
                 auto poolItem = findByAddress(protocol, OTHER_ADDRESS_55, OWN_ADDRESS);
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 1);
@@ -224,8 +227,8 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
             SECTION("Ack over Two Hop, should ack and forward")
             {
-                auto v = Packet<1, 1>().source(OTHER_ADDRESS_55).payload(payload).destination(OWN_ADDRESS).twoHop().build();
-                protocol.handleRx<100, 100>(RSSI_HIGH, v);
+                auto v = Packet<1>().source(OTHER_ADDRESS_55).payload(payload).destination(OWN_ADDRESS).twoHop().build();
+                protocol.handleRx(RSSI_HIGH, v);
 
                 auto poolItem = findByAddress(protocol, OTHER_ADDRESS_55, OWN_ADDRESS);
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 1);
@@ -249,16 +252,16 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
         SECTION("With Packed in pool")
         {
             // Add packet to pool with a request to ack (singleHop, twoHop is set)
-            auto packet = Packet<1, 1>().payload(payload).destination(OTHER_ADDRESS_55).singleHop();
+            auto packet = Packet<1>().payload(payload).destination(OTHER_ADDRESS_55).singleHop();
             protocol.sendPacket(packet, 10);
-            packet = Packet<1, 1>().payload(payload).destination(OTHER_ADDRESS_66).singleHop();
+            packet = Packet<1>().payload(payload).destination(OTHER_ADDRESS_66).singleHop();
             protocol.sendPacket(packet, 11);
             REQUIRE(protocol.pool().getAllocatedBlocks().size() == 2);
 
             SECTION("When ack received for us, should remove the frames")
             {
-                auto ack = Packet<1, 1>().source(OTHER_ADDRESS_55).destination(OWN_ADDRESS).buildAck();
-                protocol.handleRx<100, 100>(RSSI_HIGH, ack);
+                auto ack = Packet<1>().source(OTHER_ADDRESS_55).destination(OWN_ADDRESS).buildAck();
+                protocol.handleRx(RSSI_HIGH, ack);
 
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 1);
                 REQUIRE(findByAddress(protocol, OTHER_ADDRESS_55) == nullptr);
@@ -269,8 +272,8 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
             SECTION("When ack received broadcast should remove frames")
             {
-                auto ack = Packet<1, 1>().source(OTHER_ADDRESS_55).buildAck();
-                protocol.handleRx<100, 100>(RSSI_HIGH, ack);
+                auto ack = Packet<1>().source(OTHER_ADDRESS_55).buildAck();
+                protocol.handleRx(RSSI_HIGH, ack);
 
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 1);
                 REQUIRE(findByAddress(protocol, OTHER_ADDRESS_55) == nullptr);
@@ -281,8 +284,8 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
             SECTION("When not ack received for us")
             {
-                auto not_ack = Packet<1, 1>().source(OTHER_ADDRESS_55).destination(OWN_ADDRESS).payload(payload).build();
-                protocol.handleRx<100, 100>(RSSI_HIGH, not_ack);
+                auto not_ack = Packet<1>().source(OTHER_ADDRESS_55).destination(OWN_ADDRESS).payload(payload).build();
+                protocol.handleRx(RSSI_HIGH, not_ack);
 
                 REQUIRE(findByAddress(protocol, OTHER_ADDRESS_55) != nullptr);
                 REQUIRE(findByAddress(protocol, OTHER_ADDRESS_66) != nullptr);
@@ -290,8 +293,8 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
             SECTION("When ack received broadcast with forward, should remove forward and ack")
             {
-                auto ack = Packet<1, 1>().source(OTHER_ADDRESS_55).forward(true).buildAck();
-                protocol.handleRx<100, 100>(RSSI_HIGH, ack);
+                auto ack = Packet<1>().source(OTHER_ADDRESS_55).forward(true).buildAck();
+                protocol.handleRx(RSSI_HIGH, ack);
 
                 auto poolItem = findByAddress(protocol, BROADCAST_ADDRESS, OTHER_ADDRESS_55);
                 REQUIRE(findByAddress(protocol, OTHER_ADDRESS_66) != nullptr);
@@ -309,8 +312,8 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
             SECTION("When ack received for other")
             {
-                auto ack = Packet<1, 1>().source(OTHER_ADDRESS_55).destination(OTHER_ADDRESS_UNR).buildAck();
-                protocol.handleRx<100, 100>(RSSI_HIGH, ack);
+                auto ack = Packet<1>().source(OTHER_ADDRESS_55).destination(OTHER_ADDRESS_UNR).buildAck();
+                protocol.handleRx(RSSI_HIGH, ack);
 
                 REQUIRE(findByAddress(protocol, OTHER_ADDRESS_55) != nullptr);
                 REQUIRE(findByAddress(protocol, OTHER_ADDRESS_66) != nullptr);
@@ -322,8 +325,8 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
             // Add to pool so we have seen OTHER_ADDRESS_66
             protocol.seen(OTHER_ADDRESS_66, app.TICK_TIME);
 
-            auto ack = Packet<1, 1>().source(OTHER_ADDRESS_55).destination(OTHER_ADDRESS_66).forward(true).buildAck();
-            protocol.handleRx<100, 100>(RSSI_HIGH, ack);
+            auto ack = Packet<1>().source(OTHER_ADDRESS_55).destination(OTHER_ADDRESS_66).forward(true).buildAck();
+            protocol.handleRx(RSSI_HIGH, ack);
 
             auto poolItem = findByAddress(protocol, Header::MessageType::ACK, OTHER_ADDRESS_66, OTHER_ADDRESS_55);
             REQUIRE(makeVectorS<100>(poolItem->data()) == makeVector({0x80, 0x55, 0x55, 0x55, 0x20, 0x66, 0x66, 0x66}));
@@ -331,17 +334,17 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
         SECTION("When ack received not seen with forward, should not forward")
         {
-            auto ack = Packet<1, 1>().source(OTHER_ADDRESS_55).destination(OTHER_ADDRESS_UNR).forward(true).buildAck();
-            protocol.handleRx<100, 100>(RSSI_HIGH, ack);
+            auto ack = Packet<1>().source(OTHER_ADDRESS_55).destination(OTHER_ADDRESS_UNR).forward(true).buildAck();
+            protocol.handleRx(RSSI_HIGH, ack);
             REQUIRE(protocol.pool().getAllocatedBlocks().size() == 0);
         }
     }
 
     SECTION("Packet Forwarding Unicast")
     {
-        auto FORWARDPACKETUNI = Packet<1, 1>().source(OTHER_ADDRESS_UNR).destination(OTHER_ADDRESS_66).payload(payload).forward(true).build();
-        auto FORWARDPACKETUNIONEHOP = Packet<1, 1>().source(OTHER_ADDRESS_UNR).destination(OTHER_ADDRESS_66).payload(payload).forward(true).ack(ExtendedHeader::AckType::SINGLEHOP).build();
-        auto FORWARDPACKETBROADCAST = Packet<1, 1>().source(OTHER_ADDRESS_UNR).payload(payload).forward(true).build();
+        auto FORWARDPACKETUNI = Packet<1>().source(OTHER_ADDRESS_UNR).destination(OTHER_ADDRESS_66).payload(payload).forward(true).build();
+        auto FORWARDPACKETUNIONEHOP = Packet<1>().source(OTHER_ADDRESS_UNR).destination(OTHER_ADDRESS_66).payload(payload).forward(true).ack(ExtendedHeader::AckType::SINGLEHOP).build();
+        auto FORWARDPACKETBROADCAST = Packet<1>().source(OTHER_ADDRESS_UNR).payload(payload).forward(true).build();
 
         SECTION("Seen, forward without ack, low RSSI ")
         {
@@ -349,13 +352,13 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
             SECTION("Should not forward, not seen")
             {
-                protocol.handleRx<100, 100>(RSSI_LOW, FORWARDPACKETUNI);
+                protocol.handleRx(RSSI_LOW, FORWARDPACKETUNI);
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 0);
             }
 
             SECTION("Should forward unicast")
             {
-                protocol.handleRx<100, 100>(RSSI_HIGH, FORWARDPACKETUNI);
+                protocol.handleRx(RSSI_HIGH, FORWARDPACKETUNI);
                 auto poolItem = findByAddress(protocol, OTHER_ADDRESS_66, OTHER_ADDRESS_UNR);
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 1);
                 REQUIRE(poolItem->numTx() == 0);
@@ -385,14 +388,14 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
                 SECTION("Should drop frames with LOW RSSI")
                 {
-                    protocol.handleRx<100, 100>(RSSI_LOW, FORWARDPACKETUNI);
+                    protocol.handleRx(RSSI_LOW, FORWARDPACKETUNI);
                     REQUIRE(protocol.pool().getAllocatedBlocks().size() == 0);
                 }
 
                 SECTION("Should adjust departure time")
                 {
                     app.TICK_TIME = 5000;
-                    protocol.handleRx<100, 100>(RSSI_HIGH, FORWARDPACKETUNI);
+                    protocol.handleRx(RSSI_HIGH, FORWARDPACKETUNI);
                     auto poolItem = findByAddress(protocol, OTHER_ADDRESS_66, OTHER_ADDRESS_UNR);
                     REQUIRE(poolItem->nextTx() >= 5000);
                 }
@@ -401,10 +404,10 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
                 {
                     auto payloadDifferent = payload;
                     payloadDifferent.climbRate(13);
-                    auto DIFFERENT = Packet<1, 1>().source(OTHER_ADDRESS_UNR).destination(OTHER_ADDRESS_66).payload(payloadDifferent).forward(true).build();
+                    auto DIFFERENT = Packet<1>().source(OTHER_ADDRESS_UNR).destination(OTHER_ADDRESS_66).payload(payloadDifferent).forward(true).build();
 
                     app.TICK_TIME = 5000;
-                    protocol.handleRx<100, 100>(RSSI_HIGH, DIFFERENT);
+                    protocol.handleRx(RSSI_HIGH, DIFFERENT);
                     auto poolItem = findByAddress(protocol, OTHER_ADDRESS_66, OTHER_ADDRESS_UNR);
                     REQUIRE(poolItem->nextTx() < 2000);
                 }
@@ -412,14 +415,14 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
 
             SECTION("Should forward unicast with hop")
             {
-                protocol.handleRx<100, 100>(RSSI_HIGH, FORWARDPACKETUNIONEHOP);
+                protocol.handleRx(RSSI_HIGH, FORWARDPACKETUNIONEHOP);
                 auto poolItem = findByAddress(protocol, OTHER_ADDRESS_66, OTHER_ADDRESS_UNR);
                 REQUIRE(poolItem->numTx() == 1);
             }
 
             SECTION("Should forward broadcast")
             {
-                protocol.handleRx<100, 100>(RSSI_HIGH, FORWARDPACKETBROADCAST);
+                protocol.handleRx(RSSI_HIGH, FORWARDPACKETBROADCAST);
                 auto poolItem = findByAddress(protocol, IGNORING_ADDRESS, OTHER_ADDRESS_UNR);
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 1);
                 REQUIRE(poolItem->numTx() == 0);
@@ -446,14 +449,14 @@ TEST_CASE_METHOD(TestFixture, "handleRx", "[Protocol]")
             SECTION("Should not forward due to high airtime")
             {
                 protocol.setAirTime(1000);
-                protocol.handleRx<100, 100>(RSSI_HIGH, FORWARDPACKETUNI);
+                protocol.handleRx(RSSI_HIGH, FORWARDPACKETUNI);
                 REQUIRE(protocol.pool().getAllocatedBlocks().size() == 0);
             }
         }
 
         SECTION("Not Seen, should not add to queue")
         {
-            protocol.handleRx<100, 100>(RSSI_HIGH, FORWARDPACKETUNI);
+            protocol.handleRx(RSSI_HIGH, FORWARDPACKETUNI);
             REQUIRE(protocol.pool().getAllocatedBlocks().size() == 0);
         }
     }
@@ -464,7 +467,7 @@ TEST_CASE_METHOD(TestFixture, "sendPacket in strict mode", "[Protocol]")
     app.TICK_TIME = 50;
     SECTION("Should set required values no ack")
     {
-        auto packet = Packet<1, 1>().payload(payload);
+        auto packet = Packet<1>().payload(payload);
         protocol.sendPacket(packet, 11);
         REQUIRE(protocol.pool().begin()->source() == OWN_ADDRESS);
         REQUIRE(protocol.pool().begin()->id() == 11);
@@ -476,7 +479,7 @@ TEST_CASE_METHOD(TestFixture, "sendPacket in strict mode", "[Protocol]")
 
     SECTION("Should set required values")
     {
-        auto packet = Packet<1, 1>().payload(payload).singleHop();
+        auto packet = Packet<1>().payload(payload).singleHop();
         protocol.sendPacket(packet, 10);
         REQUIRE(protocol.pool().begin()->source() == OWN_ADDRESS);
         REQUIRE(protocol.pool().begin()->id() == 10);
@@ -498,24 +501,24 @@ TEST_CASE_METHOD(TestFixture, "getNextTxFrame", "[Protocol]")
         app.TICK_TIME = 3;
         GroundTrackingPayload gtPayload;
 
-        auto PAYLOADPACKGE = Packet<1, 1>().source(OTHER_ADDRESS_UNR).destination(OTHER_ADDRESS_66).payload(gtPayload).forward(true).ack(ExtendedHeader::AckType::SINGLEHOP).build();
+        auto PAYLOADPACKGE = Packet<1>().source(OTHER_ADDRESS_UNR).destination(OTHER_ADDRESS_66).payload(gtPayload).forward(true).ack(ExtendedHeader::AckType::SINGLEHOP).build();
 
         MessagePayload<5> messagepayload;
-        auto MESSAGEPACKET = Packet<5, 5>().source(OTHER_ADDRESS_UNR).destination(OTHER_ADDRESS_55).payload(messagepayload).forward(true).ack(ExtendedHeader::AckType::SINGLEHOP).build();
+        auto MESSAGEPACKET = Packet<5>().source(OTHER_ADDRESS_UNR).destination(OTHER_ADDRESS_55).payload(messagepayload).forward(true).ack(ExtendedHeader::AckType::SINGLEHOP).build();
 
         // Ack frames other
-        auto ack = Packet<1, 1>().source(OTHER_ADDRESS_55).forward(true).buildAck();
-        protocol.handleRx<100, 100>(RSSI_HIGH, ack);
+        auto ack = Packet<1>().source(OTHER_ADDRESS_55).forward(true).buildAck();
+        protocol.handleRx(RSSI_HIGH, ack);
 
         // Non tracking
-        protocol.handleRx<100, 100>(RSSI_HIGH, MESSAGEPACKET);
+        protocol.handleRx(RSSI_HIGH, MESSAGEPACKET);
 
         // Priority frames
-        protocol.handleRx<100, 100>(RSSI_HIGH, PAYLOADPACKGE);
+        protocol.handleRx(RSSI_HIGH, PAYLOADPACKGE);
 
         // Add self packet
         NamePayload<5> namePayload;
-        auto selfPacket = Packet<5, 5>().payload(namePayload);
+        auto selfPacket = Packet<5>().payload(namePayload);
         protocol.sendPacket(selfPacket, 0);
 
         // TEST
@@ -556,11 +559,11 @@ TEST_CASE_METHOD(TestFixture, "getNextTxFrame", "[Protocol]")
 
         // Add self packet
         app.TICK_TIME = 15000;
-        auto selfPacket = Packet<5, 5>().payload(gtPayload).destination(OTHER_ADDRESS_66);
+        auto selfPacket = Packet<5>().payload(gtPayload).destination(OTHER_ADDRESS_66);
         protocol.sendPacket(selfPacket, 0);
 
         app.TICK_TIME = 10000;
-        selfPacket = Packet<5, 5>().payload(gtPayload).destination(OTHER_ADDRESS_55);
+        selfPacket = Packet<5>().payload(gtPayload).destination(OTHER_ADDRESS_55);
         protocol.sendPacket(selfPacket, 0);
 
         app.TICK_TIME = 5000;
@@ -587,13 +590,13 @@ TEST_CASE_METHOD(TestFixture, "handleTx", "[Protocol]")
     protocol.seen(OTHER_ADDRESS_66, app.TICK_TIME);
 
     MessagePayload<5> messagepayload;
-    auto MESSAGEPACKET = Packet<5, 5>().payload(messagepayload);
+    auto MESSAGEPACKET = Packet<5>().payload(messagepayload);
 
     SECTION("When sendPackage")
     {
         SECTION("Without ack")
         {
-            auto selfPacket = Packet<5, 5>().payload(NamePayload<5>{}).destination(OTHER_ADDRESS_55);
+            auto selfPacket = Packet<5>().payload(NamePayload<5>{}).destination(OTHER_ADDRESS_55);
             protocol.sendPacket(selfPacket, 0);
 
             protocol.handleTx();
@@ -603,7 +606,7 @@ TEST_CASE_METHOD(TestFixture, "handleTx", "[Protocol]")
 
         SECTION("With ack non tracking")
         {
-            auto selfPacket = Packet<5, 5>().payload(NamePayload<5>{}).destination(OTHER_ADDRESS_55).singleHop();
+            auto selfPacket = Packet<5>().payload(NamePayload<5>{}).destination(OTHER_ADDRESS_55).singleHop();
             protocol.sendPacket(selfPacket, 0);
 
             SECTION("When Success, should keep the frames and handle backoff")
@@ -647,7 +650,7 @@ TEST_CASE_METHOD(TestFixture, "handleTx", "[Protocol]")
 
         SECTION("With ack tracking")
         {
-            auto selfPacket = Packet<5, 5>().payload(TrackingPayload{}).destination(OTHER_ADDRESS_55).singleHop();
+            auto selfPacket = Packet<5>().payload(TrackingPayload{}).destination(OTHER_ADDRESS_55).singleHop();
             protocol.sendPacket(selfPacket, 0);
 
             SECTION("When Success, should remove the frame")
@@ -670,7 +673,7 @@ TEST_CASE_METHOD(TestFixture, "handleTx", "[Protocol]")
     SECTION("Package time not ready")
     {
         app.TICK_TIME = 10000;
-        auto selfPacket = Packet<5, 5>().payload(NamePayload<5>{}).destination(OTHER_ADDRESS_55);
+        auto selfPacket = Packet<5>().payload(NamePayload<5>{}).destination(OTHER_ADDRESS_55);
         protocol.sendPacket(selfPacket, 0);
         app.TICK_TIME = 9000;
         protocol.handleTx();

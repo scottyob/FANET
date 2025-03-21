@@ -128,7 +128,7 @@ auto OTHER_ADDRESS_UNR = Address{0xEE,0xEEEE};
 auto BROADCAST_ADDRESS = Address{};
 auto IGNORING_ADDRESS = Address{0xff, 0xffff};
 
-const FANET::TxFrame * findByAddress(Protocol &protocol, Header::MessageType type, Address destination, Address source) {
+const FANET::TxFrame<uint8_t>* findByAddress(Protocol &protocol, Header::MessageType type, Address destination, Address source) {
     auto it = etl::find_if(protocol.pool().begin(), protocol.pool().end(),
     [&type, &destination, &source](auto block)
     {
@@ -158,7 +158,7 @@ const FANET::TxFrame * findByAddress(Protocol &protocol, Header::MessageType typ
     return nullptr;
 }
 
- FANET::TxFrame * findByAddress(Protocol &protocol, Address destination, Address source = IGNORING_ADDRESS) {
+ FANET::TxFrame<uint8_t> * findByAddress(Protocol &protocol, Address destination, Address source = IGNORING_ADDRESS) {
     auto * it = etl::find_if(protocol.pool().begin(), protocol.pool().end(),
     [&destination, &source](auto block)
     {
@@ -177,7 +177,7 @@ const FANET::TxFrame * findByAddress(Protocol &protocol, Header::MessageType typ
 
     if (it != protocol.pool().end())
     {
-        return  const_cast<FANET::TxFrame *>(&(*it));
+        return  const_cast<FANET::TxFrame<uint8_t> *>(&(*it));
     }
 
     return nullptr;

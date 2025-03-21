@@ -11,7 +11,6 @@ add_definitions(-DUNIT_TESTING)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-O0 -coverage")
 
 # Pull ETL framework
 FetchContent_Declare(
@@ -19,7 +18,18 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/ETLCPP/etl
   GIT_TAG        20.39.4
 )
-FetchContent_MakeAvailable(etl)
+
+# Configure ETL options before making it available
+set(ETL_BUILD_TESTS OFF CACHE BOOL "Disable ETL tests")
+set(ETL_BUILD_EXAMPLES OFF CACHE BOOL "Disable ETL examples")
+set(ETL_USER_DEFINED_TYPE_TRAITS OFF CACHE BOOL "Disable ETL user defined type traits")
+set(ETL_NO_UNITTEST_BUILD ON CACHE BOOL "Disable ETL unit test build")
+
+FetchContent_GetProperties(etl)
+if(NOT etl_POPULATED)
+    FetchContent_Populate(etl)
+    add_subdirectory(${etl_SOURCE_DIR} ${etl_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
 
 # Pull in the Catch2 framework.
 FetchContent_Declare(
@@ -30,17 +40,17 @@ FetchContent_MakeAvailable(Catch2)
 
 # These examples use the standard separate compilation
 set(SOURCES_IDIOMATIC_EXAMPLES # Tests
-  # fanet_tests.cpp
-  # utils_tests.cpp
-  # packetParser_tests.cpp
-  # packet_tests.cpp
-  # tracking_tests.cpp
-  # message_tests.cpp
-  # name_tests.cpp
-  # groundTracking_tests.cpp
-   protocol_tests.cpp
-  # queue_tests.cpp
-   zone_tests.cpp
+  fanet_tests.cpp
+  utils_tests.cpp
+  packetParser_tests.cpp
+  packet_tests.cpp
+  tracking_tests.cpp
+  message_tests.cpp
+  name_tests.cpp
+  groundTracking_tests.cpp
+  protocol_tests.cpp
+  queue_tests.cpp
+  zone_tests.cpp
 )
 
 string(REPLACE ".cpp" "" BASENAMES_IDIOMATIC_EXAMPLES
@@ -49,6 +59,8 @@ set(TARGETS_IDIOMATIC_EXAMPLES ${BASENAMES_IDIOMATIC_EXAMPLES})
 
 
 if(ENABLE_COVERAGE)
+  set(CMAKE_CXX_FLAGS "-O0 -coverage")
+
   find_program(LCOV lcov REQUIRED)
   find_program(GENHTML genhtml REQUIRED)
 
@@ -78,14 +90,11 @@ foreach(name ${TARGETS_IDIOMATIC_EXAMPLES})
 
   target_link_libraries(
       ${name} 
-      Catch2WithMain
+      Catch2::Catch2WithMain
+      fanet::fanet
       etl)
 
-      add_custom_command(
-      TARGET ${name}
-      COMMENT "Run tests"
-      POST_BUILD
-      COMMAND ${name})
+  add_test(NAME ${name} COMMAND ${name})
 endforeach()
 endif()
 

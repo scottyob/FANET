@@ -123,7 +123,7 @@ namespace FANET
      * @param preambleLength The length of the preamble.
      * @return The airtime in milliseconds.
      */
-    int32_t LoraAirtime(int size,
+    static int32_t LoraAirtime(int size,
                              int sf,
                              int bw,
                              int cr = 1, // Coding Rate in 1:4/5 2:4/6 3:4/7 4:4/8

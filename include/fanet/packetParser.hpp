@@ -16,11 +16,11 @@ namespace FANET
 {
     /**
      * @brief A variant type to hold different payload types.
-     * @tparam MESSAGESIZE The size of the message payload.
-     * @tparam NAMESIZE The size of the name payload.
+     * @tparam MAXFRAMESIZE The size of the message payload.
+     * @tparam MAXFRAMESIZE The size of the name payload.
      */
-    template <size_t MESSAGESIZE, size_t NAMESIZE>
-    using PayloadVariant = etl::variant<TrackingPayload, NamePayload<NAMESIZE>, MessagePayload<MESSAGESIZE>, GroundTrackingPayload>;
+    template <size_t MAXFRAMESIZE>
+    using PayloadVariant = etl::variant<TrackingPayload, NamePayload<MAXFRAMESIZE>, MessagePayload<MAXFRAMESIZE>, GroundTrackingPayload>;
 
     /**
      * @brief A class to parse FANET packets from a byte buffer.
@@ -29,10 +29,10 @@ namespace FANET
      * It reads the header, source address, optional extended header, and payload from the buffer.
      * The class supports different payload types based on the message type in the header.
      * 
-     * @tparam MESSAGESIZE The size of the message payload.
-     * @tparam NAMESIZE The size of the name payload.
+     * @tparam MAXFRAMESIZE The size of the message payload.
+     * @tparam MAXFRAMESIZE The size of the name payload.
      */
-    template <size_t MESSAGESIZE, size_t NAMESIZE>
+    template <size_t MAXFRAMESIZE>
     class PacketParser final
     {
     public:
@@ -45,7 +45,7 @@ namespace FANET
          * @param buffer The byte buffer containing the packet data.
          * @return The parsed FANET packet.
          */
-        static Packet<MESSAGESIZE, NAMESIZE> parse(const etl::ivector<uint8_t> &buffer)
+        static Packet<MAXFRAMESIZE> parse(etl::span<const uint8_t> buffer)
         {
             etl::bit_stream_reader reader((uint8_t *)buffer.data(), buffer.size(), etl::endian::big);
             Header header;
@@ -53,7 +53,7 @@ namespace FANET
             etl::optional<Address> optDestination;
             etl::optional<ExtendedHeader> optExtHeader;
             etl::optional<uint32_t> optSignature;
-            etl::optional<PayloadVariant<MESSAGESIZE, NAMESIZE>> optPayload;
+            etl::optional<PayloadVariant<MAXFRAMESIZE>> optPayload;
 
             reader.restart();
             header = Header::deserialize(reader);
@@ -78,10 +78,10 @@ namespace FANET
                 optPayload = TrackingPayload::deserialize(reader);
                 break;
             case Header::MessageType::NAME:
-                optPayload = NamePayload<NAMESIZE>::deserialize(reader);
+                optPayload = NamePayload<MAXFRAMESIZE>::deserialize(reader);
                 break;
             case Header::MessageType::MESSAGE:
-                optPayload = MessagePayload<MESSAGESIZE>::deserialize(reader);
+                optPayload = MessagePayload<MAXFRAMESIZE>::deserialize(reader);
                 break;
             case Header::MessageType::GROUND_TRACKING:
                 optPayload = GroundTrackingPayload::deserialize(reader);
@@ -90,7 +90,7 @@ namespace FANET
                 break; // ACK or unsupported types
             }
 
-            return Packet<MESSAGESIZE, NAMESIZE>(header, source, optDestination, optExtHeader, optSignature, optPayload);
+            return Packet<MAXFRAMESIZE>(header, source, optDestination, optExtHeader, optSignature, optPayload);
         }
     };
 };

@@ -72,7 +72,7 @@ namespace FANET
          * @brief Set the message data.
          * @param message The message data.
          */
-        void message(const etl::ivector<uint8_t> &message)
+        void message(const etl::span<uint8_t> &message)
         {
             size_t copy_size = std::min(message.size(), messageRaw.capacity());
             messageRaw.assign(message.begin(), message.begin() + copy_size);

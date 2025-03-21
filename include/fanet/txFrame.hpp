@@ -13,13 +13,17 @@ namespace FANET
      * Due to the way FANET works, a few header bits can be modified even
      * when they are in the pool. This class supplies that possibility.
      */
+    template <typename T>
     class TxFrame
     {
         friend class Protocol;
         friend class BlockAllocator;
 
     private:
-        etl::span<uint8_t> block_; // Raw packet data, this will point to the correct BEGIN and END in the TxPool after the packet was copied
+        static_assert(std::is_same_v<T, uint8_t> || std::is_same_v<T, const uint8_t>,
+                      "TxFrameBase must be instantiated with uint8_t or const uint8_t.");
+
+        etl::span<T> block_; // Raw packet data, this will point to the correct BEGIN and END in the TxPool after the packet was copied
         uint32_t nextTx_;          // Next transmission time
         struct
         {
@@ -33,7 +37,7 @@ namespace FANET
          * @brief Constructor that initializes the TxFrame with a block of data.
          * @param block The block of data.
          */
-        TxFrame(etl::span<uint8_t> block) : block_(block), nextTx_(0), numTx_(0), self_(false), rssi_(0), id_(0) {}
+        TxFrame(etl::span<T> block) : block_(block), nextTx_(0), numTx_(0), self_(false), rssi_(0), id_(0) {}
 
         /**
          * @brief Set the number of transmissions.
@@ -118,7 +122,7 @@ namespace FANET
          * @brief Get the payload data.
          * @return The payload data as a span.
          */
-        etl::span<uint8_t> payload()
+        etl::span<const T> payload() const
         {
             // Position of the payload in the packet based on the various bits in the header
             uint8_t payloadPosition[] = {4, 4, 4, 4, 5, 9, 8, 12};
@@ -126,7 +130,7 @@ namespace FANET
             uint8_t cast = ((block_[4] & 0x20) && extended) ? 2 : 0;
             uint8_t sig = ((block_[4] & 0x10)) && extended ? 1 : 0;
             uint8_t pos = payloadPosition[extended | cast | sig];
-            return etl::span<uint8_t>(block_.data() + pos, block_.end());
+            return etl::span<const T>(block_.data() + pos, block_.end());
         }
 
     public:
@@ -244,7 +248,7 @@ namespace FANET
          * @brief Get the raw packet data.
          * @return The raw packet data as a span.
          */
-        etl::span<uint8_t> data() const
+        etl::span<T> data() const
         {
             return block_;
         }
@@ -253,7 +257,7 @@ namespace FANET
          * @brief Set the raw packet data.
          * @param v The raw packet data as a span.
          */
-        void data(etl::span<uint8_t> v)
+        void data(etl::span<T> v)
         {
             block_ = v;
         }

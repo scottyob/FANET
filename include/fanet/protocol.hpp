@@ -19,6 +19,7 @@
 #include "blockAllocator.hpp"
 #include "packetParser.hpp"
 #include "neighbourTable.hpp"
+#include "connector.hpp"
 
 namespace FANET
 {
@@ -62,11 +63,11 @@ namespace FANET
         etl::random_xorshift random; // XOR-Shift PRNG from ETL
 
         // Pool for all frames that need to be sent
-        using TxPool = BlockAllocator<FANET::TxFrame, 50, 16>;
+        using TxPool = BlockAllocator<FANET::TxFrame<uint8_t>, 50, 16>;
         TxPool txPool;
 
         // Table with received neighbors
-        NeighbourTable<100> neighborTable_;
+        NeighbourTable<FANET_MAX_NEIGHBORS> neighborTable_;
 
         // User's own address
         Address ownAddress_{1}; // Default to 1 to ensure 'ownAddress_' is not broadcast
@@ -77,9 +78,10 @@ namespace FANET
         // This is like CSMA in the old protocol.
         uint32_t cmcaNextTx = 0;
         uint8_t carrierBackoffExp = MAC_TX_BACKOFF_EXP_MIN;
-        // Connector for the application, e.g., the interface between the FANET protocol and the application
-        Connector &connector;
         AirTime airtime;
+
+        // Connector for the application, e.g., the interface between the FANET protocol and the application
+        Connector* connector; 
 
         /**
          * @brief set airtime. Not used in production code and only during tests 0..1000 => 0%..100%
@@ -90,23 +92,19 @@ namespace FANET
         }
 
         /**
-         * @brief Build an acknowledgment packet from an existing packet.
-         * @tparam MESSAGESIZE The size of the message payload.
-         * @tparam NAMESIZE The size of the name payload.
-         * @param packet The packet to acknowledge.
-         * @return The acknowledgment packet.
+         * @brief Build an acknowledgment packet from an existing frame.
+         * @param frame The frame to acknowledge.
+         * @return The acknowledgment frame.
          */
-        template <size_t MESSAGESIZE, size_t NAMESIZE>
-        auto buildAck(const Packet<MESSAGESIZE, NAMESIZE> &packet)
+        auto buildAck(TxFrame<const uint8_t> &frame)
         {
             // fmac.260
-            Packet<1, 1> ack;
-            ack.source(ownAddress_).destination(packet.source());
+            Packet<1> ack;
+            ack.source(ownAddress_).destination(frame.source());
 
             // fmac.265
             /* only do a 2 hop ACK in case it was requested and we received it via a two hop link (= forward bit is not set anymore) */
-            if (packet.extendedHeader().value_or(ExtendedHeader{}).ack() == ExtendedHeader::AckType::TWOHOP &&
-                !packet.header().forward())
+            if (frame.ackType() == ExtendedHeader::AckType::TWOHOP && !frame.forward())
             {
                 ack.forward(true);
             }
@@ -129,16 +127,16 @@ namespace FANET
          * @param buffer The buffer to match.
          * @return A pointer to the matching TX frame, or nullptr when no match is found.
          */
-        TxFrame *frameInTxPool(const etl::span<uint8_t> buffer)
+        TxFrame<uint8_t> *frameInTxPool(const TxFrame<const uint8_t> &other)
         {
             // clang-format off
             auto it = etl::find_if(txPool.begin(), txPool.end(),
-                [&buffer](auto block)
+                [&other](auto block)
                 {
                     // frame.162
-                    auto other = TxFrame{buffer};
+//                    auto other = TxFrame{buffer};
                     if (block.source() != other.source()) {return false; }
-                    if (block.data().size() != buffer.size())  {return false; }
+                    if (block.data().size() != other.data().size())  {return false; }
                     if (block.destination() != other.destination())  {return false; }
                     if (block.type() != other.type())  {return false; }
                     if (!etl::equal(block.payload(), other.payload()))  {return false; }
@@ -192,9 +190,9 @@ namespace FANET
          * @param timeMs The current time in milliseconds.
          * @return A pointer to the next TX frame, or nullptr if no frame is available.
          */
-        TxFrame *getNextTxFrame(uint32_t timeMs)
+        TxFrame<uint8_t> *getNextTxFrame(uint32_t timeMs)
         {
-            TxFrame *nextFrame = nullptr;
+            TxFrame<uint8_t> *nextFrame = nullptr;
             uint8_t highestPriority = 4; // 1 = self, 2 = priority, 3 = ack, 4 = other
             uint32_t earliestTime = UINT32_MAX;
 
@@ -232,7 +230,7 @@ namespace FANET
             return nextFrame;
         }
 
-        auto sendFrame(TxFrame *frm)
+        auto sendFrame(TxFrame<uint8_t> *frm)
         {
             struct ret
             {
@@ -241,10 +239,21 @@ namespace FANET
             };
             auto cr = neighborTable_.size() < MAC_CODING48_THRESHOLD ? 8 : 5;
             uint16_t lengthBytes = frm->data().end() - frm->data().begin();
-            airtime.set(connector.getTick(), FANET::LoraAirtime(lengthBytes, 7, 250, cr - 4));
+            airtime.set(connector->fanet_getTick(), FANET::LoraAirtime(lengthBytes, 7, 250, cr - 4));
             return ret{
-                connector.sendFrame(cr, frm->data()),
+                connector->fanet_sendFrame(cr, frm->data()),
                 lengthBytes};
+        }
+
+        /* device -> air */
+        // virtual bool is_broadcast_ready(int num_neighbors) = 0;
+        // virtual void broadcast_successful(int type) = 0;
+        // virtual Frame *get_frame() = 0;
+
+        // /* air -> device */
+        void ackReceived(uint16_t id)
+        {
+            return connector->fanet_ackReceived(id);
         }
 
     public:
@@ -252,14 +261,14 @@ namespace FANET
          * @brief Constructor for the Protocol class.
          * @param connector_ The connector interface for the application.
          */
-        Protocol(Connector &connector_) : connector(connector_)
+        Protocol(Connector* connector_) : connector(connector_)
         {
             init();
         }
 
         void init()
         {
-            random.initialise(connector.getTick());
+            random.initialise(connector->fanet_getTick());
             neighborTable_.clear();
             txPool.clear();
         }
@@ -279,20 +288,20 @@ namespace FANET
             return txPool;
         }
 
-        const NeighbourTable<100> &neighborTable() const
+        const NeighbourTable<FANET_MAX_NEIGHBORS> &neighborTable() const
         {
             return neighborTable_;
         }
 
         /**
          * @brief Send a FANET packet.
-         * @tparam MESSAGESIZE The size of the message payload.
-         * @tparam NAMESIZE The size of the name payload.
+         * @tparam MAXFRAMESIZE The size of the message payload.
+         * @tparam MAXFRAMESIZE The size of the name payload.
          * @param packet The packet to send.
          * @param id ID of this packet, can be used if you request an ack and to know if the packet was received
          */
-        template <size_t MESSAGESIZE, size_t NAMESIZE>
-        void sendPacket(Packet<MESSAGESIZE, NAMESIZE> &packet, uint16_t id = 0, bool strict = true)
+        template <size_t MAXFRAMESIZE>
+        void sendPacket(Packet<MAXFRAMESIZE> &packet, uint16_t id = 0, bool strict = true)
         {
             uint8_t numTx;
             if (strict)
@@ -313,30 +322,28 @@ namespace FANET
             }
 
             auto v = packet.build();
-            auto txFrame = TxFrame{{v.data(), v.size()}}.self(true).id(id).nextTx(connector.getTick()).numTx(numTx);
+            auto txFrame = TxFrame<uint8_t>{{v.data(), v.size()}}.self(true).id(id).nextTx(connector->fanet_getTick()).numTx(numTx);
             txPool.add(txFrame);
         }
 
         /**
          * @brief Handle a received FANET packet.
-         * @tparam MESSAGESIZE The size of the message payload.
-         * @tparam NAMESIZE The size of the name payload.
+         * @tparam MAXFRAMESIZE The size of the message payload.
+         * @tparam MAXFRAMESIZE The size of the name payload.
          * @param rssddBm The received signal strength in dBm.
          * @param buffer The byte buffer containing the packet data.
-         * @return The parsed FANET packet.
+         * @return The MessageType
          */
-        template <size_t MESSAGESIZE, size_t NAMESIZE>
-        Packet<MESSAGESIZE, NAMESIZE> handleRx(int16_t rssddBm, etl::ivector<uint8_t> &buffer)
+        Header::MessageType handleRx(int16_t rssddBm, etl::span<const uint8_t> buffer)
         {
             // START: OK
-            static constexpr size_t MAC_PACKET_SIZE = ((MESSAGESIZE > NAMESIZE) ? MESSAGESIZE : NAMESIZE) + 12; // 12 Byte for maximum header size
-            auto timeMs = connector.getTick();
+            // static constexpr size_t MAC_PACKET_SIZE = ((MAXFRAMESIZE > MAXFRAMESIZE) ? MAXFRAMESIZE : MAXFRAMESIZE) + 12; // 12 Byte for maximum header size
+            auto timeMs = connector->fanet_getTick();
 
-            auto packet = PacketParser<MESSAGESIZE, NAMESIZE>::parse(buffer);
+            auto packet = TxFrame<const uint8_t>{buffer};
             // packet.print();
 
-            auto destination = packet.destination().value_or(Address{});
-            auto extendedHeader = packet.extendedHeader().value_or(ExtendedHeader{});
+            auto destination = packet.destination();
 
             // fmac.283 Perhaps move this to some maintenance task?
             neighborTable_.removeOutdated(timeMs);
@@ -344,7 +351,7 @@ namespace FANET
             // Drop packages forwarded to us
             if (packet.source() == ownAddress_)
             {
-                return packet;
+                return packet.type();
             }
 
             // fmac.322
@@ -354,7 +361,7 @@ namespace FANET
             // fmac.326
             // Decide if we have seen this frame already in the past, if so decide what to do with the frame in our buffer
             // This concerns forwarding of packets from other FANET devices
-            auto frmList = frameInTxPool(buffer);
+            auto frmList = frameInTxPool(packet);
             if (frmList)
             {
                 /* frame already in tx queue */
@@ -367,7 +374,7 @@ namespace FANET
                 {
                     /* adjusting new departure time */
                     // fmac.346
-                    frmList->nextTx(connector.getTick() + random.range(MAC_FORWARD_DELAY_MIN, MAC_FORWARD_DELAY_MAX));
+                    frmList->nextTx(connector->fanet_getTick() + random.range(MAC_FORWARD_DELAY_MIN, MAC_FORWARD_DELAY_MAX));
                 }
             }
             // END: OK
@@ -380,7 +387,7 @@ namespace FANET
                 {
                     // fmac.353
                     // When we receive an ack in broadcast or to us, but the frame was not found in our pool
-                    if (packet.header().type() == Header::MessageType::ACK)
+                    if (packet.type() == Header::MessageType::ACK)
                     {
                         // fmac.cpp 356
                         auto id = removeDeleteAckedFrame(packet.source());
@@ -388,35 +395,36 @@ namespace FANET
                         // Inform the application only if the id is != 0
                         if (id)
                         {
-                            connector.ackReceived(id);
+                            ackReceived(id);
                         }
                     }
                     else
                     {
                         // fmac.361
                         // When ACK was requested
-                        if (extendedHeader.ack() != ExtendedHeader::AckType::NONE)
+                        if (packet.ackType() != ExtendedHeader::AckType::NONE)
                         {
                             // fmac.362
                             auto v = buildAck(packet);
-                            txPool.add(TxFrame{v}.nextTx(timeMs));
+                            txPool.add(TxFrame<uint8_t>{v}.nextTx(timeMs));
                         }
                     }
                 }
 
                 // fmac.371
-                if (doForward && packet.header().forward() &&
+                if (doForward && packet.forward() &&
                     rssddBm <= MAC_FORWARD_MAX_RSSI_DBM &&
                     (destination == Address{} || neighborTable_.lastSeen(destination) &&
                                                      airtime.get(timeMs) < 500))
                 {
                     /* generate new tx time */
                     auto nextTx = timeMs + random.range(MAC_FORWARD_DELAY_MIN, MAC_FORWARD_DELAY_MAX);
-                    auto numTx = extendedHeader.ack() != ExtendedHeader::AckType::NONE ? 1 : 0;
+                    auto numTx = packet.ackType() != ExtendedHeader::AckType::NONE ? 1 : 0;
 
                     /* add to list */
                     // fmac.368
-                    auto txFrame = TxFrame{/*destination,*/ etl::span<uint8_t>(buffer.data(), buffer.size())}
+                    // fmac.368
+                    auto txFrame = TxFrame<uint8_t>{etl::span<uint8_t>(const_cast<uint8_t*>(buffer.data()), buffer.size())}
                                        .rssi(rssddBm)
                                        .numTx(numTx)
                                        .nextTx(nextTx)
@@ -425,7 +433,7 @@ namespace FANET
                 }
             }
 
-            return packet;
+            return packet.type();
         }
 
         /**
@@ -438,7 +446,7 @@ namespace FANET
          */
         uint32_t handleTx()
         {
-            auto timeMs = connector.getTick();
+            auto timeMs = connector->fanet_getTick();
 
             // fmac.403
             if (!timeReached(timeMs, cmcaNextTx))
@@ -499,7 +507,7 @@ namespace FANET
             /////////  Send data
             // fmac.502
             auto status = sendFrame(frm);
-            timeMs = connector.getTick();
+            timeMs = connector->fanet_getTick();
 
             // fmac 505
             if (status.isSend)
@@ -535,7 +543,8 @@ namespace FANET
             else
             {
                 /* channel busy, increment backoff exp */
-                if (carrierBackoffExp < MAC_TX_BACKOFF_EXP_MAX) {
+                if (carrierBackoffExp < MAC_TX_BACKOFF_EXP_MAX)
+                {
                     carrierBackoffExp++;
                 }
 
