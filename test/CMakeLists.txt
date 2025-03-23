@@ -48,6 +48,7 @@ set(SOURCES_IDIOMATIC_EXAMPLES # Tests
   message_tests.cpp
   name_tests.cpp
   groundTracking_tests.cpp
+  service_tests.cpp
   protocol_tests.cpp
   queue_tests.cpp
   zone_tests.cpp

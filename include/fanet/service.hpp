@@ -8,31 +8,43 @@
 namespace FANET
 {
     /**
-     * Tracking payload
-     * Messagetype : 1
+     * Service payload
+     * Messagetype : 4
      */
     class ServicePayload final : public Payloadbase
     {
     public:
-        uint8_t header;
-        uint8_t eHeader;
+        enum class ServiceType : uint8_t
+        {
+            WEATHER = 0,  // Weather station
+            WINDSOCK = 1, // Windsock
+            DEM = 2,      // Digital Elevation Model
+            TEMP = 3,     // Temperature
+            HUMIDITY = 4, // Humidity
+            PRESSURE = 5, // Pressure
+            GATEWAY = 6   // Gateway
+        };
+
+    private:
+        uint8_t header = 0;
+        uint8_t eHeader = 0;
         int32_t latitudeRaw = 0;
         int32_t longitudeRaw = 0;
         uint16_t altitudeRaw = 0;
-        uint8_t temperatureRaw;
-        uint8_t windHeadingRaw;
-        bool sWindBit;
-        uint8_t windSpeedRaw;
-        bool gWindBit;
-        uint8_t windGustRaw;
-        uint8_t humidityRaw;
-        uint16_t barometricRaw;
+        int8_t temperatureRaw = 0;
+        uint8_t windHeadingRaw = 0;
+        bool sWindBit = false;
+        uint8_t windSpeedRaw = 0;
+        bool gWindBit = false;
+        uint8_t windGustRaw = 0;
+        uint8_t humidityRaw = 0;
+        uint16_t barometricRaw = 0;
 
     public:
         /**
          * @brief Default constructor.
          */
-        explicit() = default;
+        ServicePayload() = default;
 
         /**
          * @brief Get the message type.
@@ -43,29 +55,60 @@ namespace FANET
             return Header::MessageType::SERVICE;
         }
 
-        bool hasGateway()
+        bool hasGateway() const
         {
             return header & 0x80;
         }
-        bool hasTemperature()
+
+        ServicePayload &setGateway(bool enabled)
+        {
+            if (enabled)
+            {
+                header |= 0x80;
+            }
+            else
+            {
+                header &= ~0x80;
+            }
+            return *this;
+        }
+
+        bool hasTemperature() const
         {
             return header & 0x40;
         }
-        bool hasWind()
+
+        bool hasWind() const
         {
             return header & 0x20;
         }
-        bool hasHumidity()
+
+        bool hasHumidity() const
         {
             return header & 0x10;
         }
-        bool hasBarometric()
+
+        bool hasBarometric() const
         {
             return header & 0x08;
         }
-        bool haseHeader()
+
+        bool hasExtendedHeader() const
         {
             return header & 0x01;
+        }
+
+        ServicePayload &setExtendedHeader(bool enabled)
+        {
+            if (enabled)
+            {
+                header |= 0x01;
+            }
+            else
+            {
+                header &= ~0x01;
+            }
+            return *this;
         }
 
         /**
@@ -110,22 +153,43 @@ namespace FANET
             return *this;
         }
 
-                /**
+        /**
          * @brief get the temperature in degrees
          * @param The temperature
          */
-        float temperature() {
-            return static_cast<float>(temperatureRaw/2) - 64.0f;
+        float temperature()
+        {
+            return temperatureRaw / 2.f;
         }
 
+        ServicePayload &temperature(float temperature)
+        {
+            header |= 0x40;
 
-        /**
-         * @brief Get the ground track in degrees.
-         * @return The ground track in degrees.
-         */
+            temperatureRaw = etl::clamp(static_cast<int>(roundf(temperature * 2.0f)), -128, 127);
+            return *this;
+        }
+
         float windHeading() const
         {
             return static_cast<float>(windHeadingRaw) * 360.f / 256.f;
+        }
+
+        ServicePayload &windHeading(float windHeading)
+        {
+            header |= 0x20;
+
+            if (windHeading < 0.0f)
+            {
+                windHeading += 360.0f;
+            }
+            else if (windHeading >= 360.0f)
+            {
+                windHeading -= 360.0f;
+            }
+
+            windHeadingRaw = etl::clamp(static_cast<int>(roundf(windHeading * 256.0f / 360.0f)), 0, 255);
+            return *this;
         }
 
         /**
@@ -142,9 +206,10 @@ namespace FANET
          * @param speed The speed in kilometers per hour.
          * @return Reference to the current object.
          */
-        ServicePayload &winSpeed(float speed)
+        ServicePayload &windSpeed(float speed)
         {
-            int32_t speed2 = etl::clamp(static_cast<int>(roundf(speed * 5)), 0, 127);
+            header |= 0x20;
+            int32_t speed2 = etl::clamp(static_cast<int>(roundf(speed * 5)), 0, 127 * 5);
             if (speed2 > 127)
             {
                 windSpeedRaw = speed2 / 5;
@@ -158,12 +223,97 @@ namespace FANET
         }
 
         /**
-         * @brief Serialize the tracking payload to a bit stream.
+         * @brief Get the gust speed in kilometers per hour.
+         * @return The speed in kilometers per hour.
+         */
+        float windGust() const
+        {
+            return gWindBit ? windGustRaw : windGustRaw / 5.0f;
+        }
+
+        /**
+         * @brief Set the wind gust speed in kilometers per hour.
+         * @param speed The speed in kilometers per hour.
+         * @return Reference to the current object.
+         */
+        ServicePayload &windGust(float speed)
+        {
+            header |= 0x20;
+            int32_t speed2 = etl::clamp(static_cast<int>(roundf(speed * 5)), 0, 127 * 5);
+            if (speed2 > 127)
+            {
+                windGustRaw = speed2 / 5;
+                gWindBit = true;
+            }
+            else
+            {
+                windGustRaw = speed2;
+            }
+            return *this;
+        }
+
+        float humidity() const
+        {
+            return humidityRaw * 0.4f;
+        }
+
+        ServicePayload &humidity(float humidity)
+        {
+            header |= 0x10;
+            humidityRaw = etl::clamp(static_cast<int>(roundf(humidity / 0.4f)), 0, 255);
+            return *this;
+        }
+
+        float barometric() const
+        {
+            return barometricRaw / 100.0f + 430.0f;
+        }
+
+        ServicePayload &barometric(float barometric)
+        {
+            header |= 0x08;
+            barometricRaw = etl::clamp(static_cast<int>(roundf(barometric * 100.0f - 43000.f)), 0, 0xFFFF);
+            return *this;
+        }
+
+        /**
+         * @brief Serialize the service payload to a bit stream.
          * @param writer The bit stream writer.
          */
-        virtual void serialize(etl::bit_stream_writer &writer) const override
+        void serialize(etl::bit_stream_writer &writer) const override
         {
-           
+            writer.write_unchecked(header);
+            if (hasExtendedHeader())
+            {
+                writer.write_unchecked(eHeader);
+            }
+
+            writer.write_unchecked(etl::reverse_bytes(latitudeRaw << 8), 24U);
+            writer.write_unchecked(etl::reverse_bytes(longitudeRaw << 8), 24U);
+
+            if (hasTemperature())
+            {
+                writer.write_unchecked(temperatureRaw);
+            }
+
+            if (hasWind())
+            {
+                writer.write_unchecked(windHeadingRaw, 8U);
+                writer.write_unchecked(sWindBit);
+                writer.write_unchecked(windSpeedRaw, 7U);
+                writer.write_unchecked(gWindBit);
+                writer.write_unchecked(windGustRaw, 7U);
+            }
+
+            if (hasHumidity())
+            {
+                writer.write_unchecked(humidityRaw);
+            }
+
+            if (hasBarometric())
+            {
+                writer.write_unchecked<uint16_t>(barometricRaw);
+            }
         }
 
         /**
@@ -171,10 +321,43 @@ namespace FANET
          * @param reader The bit stream reader.
          * @return The deserialized service payload.
          */
-        static const ServicePayload deserialize(etl::bit_stream_reader &reader)
+        static ServicePayload deserialize(etl::bit_stream_reader &reader)
         {
             ServicePayload service;
-           
+
+            service.header = reader.read_unchecked<uint8_t>();
+            if (service.hasExtendedHeader())
+            {
+                service.eHeader = reader.read_unchecked<uint8_t>();
+            }
+
+            service.latitudeRaw = etl::reverse_bytes(reader.read_unchecked<uint32_t>(24U)) >> 8;
+            service.longitudeRaw = etl::reverse_bytes(reader.read_unchecked<uint32_t>(24U)) >> 8;
+
+            if (service.hasTemperature())
+            {
+                service.temperatureRaw = reader.read_unchecked<int8_t>();
+            }
+
+            if (service.hasWind())
+            {
+                service.windHeadingRaw = reader.read_unchecked<uint8_t>();
+                service.sWindBit = reader.read_unchecked<bool>();
+                service.windSpeedRaw = reader.read_unchecked<uint8_t>(7U);
+                service.gWindBit = reader.read_unchecked<bool>();
+                service.windGustRaw = reader.read_unchecked<uint8_t>(7U);
+            }
+
+            if (service.hasHumidity())
+            {
+                service.humidityRaw = reader.read_unchecked<uint8_t>();
+            }
+
+            if (service.hasBarometric())
+            {
+                service.barometricRaw = reader.read_unchecked<uint16_t>();
+            }
+
             return service;
         }
     };
