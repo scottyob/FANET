@@ -110,7 +110,7 @@ No Payload, must be unicast
 -----------
 
 Tracking (Type = 1)
-[recommended interval: floor((#neighbors/10 + 1) * 5s) ]
+[recommended intervall: floor((#neighbors/10 + 1) * 5s) ]
 Note: Done by app layer of the fanet module
 
 [Byte 0-2]	Position	(Little Endian, 2-Complement)
@@ -156,7 +156,7 @@ bit 0-6		Value 		in m
 ------------
 
 Name (Type = 2)
-[recommended interval: every 4min]
+[recommended intervall: every 4min]
 
 8bit String (of arbitrary length, \0 termination not required)
 
@@ -173,7 +173,7 @@ bit 0-7 	Subheader, Subtype (TBD)
 ------------
 
 Service (Type = 4)
-[recommended interval: 40sec]
+[recommended intervall: 40sec]
 
 [Byte 0]	Header	(additional payload will be added in order 6 to 1, followed by Extended Header payload 7 to 0 once defined)
 bit 7		Internet Gateway (no additional payload required, other than a position)
@@ -292,8 +292,8 @@ bit 0		Online Tracking
 
 ------------
 
-HW Info (Type = 8)	(DEPRECATED)
-[recommended interval: very low, every 10min]
+HW Info (Type = 8)	(DEPRICATED)
+[recommended intervall: very low, every 10min]
 
 [Byte 0]	Instrument / Device Type (Manufacturer Spezific)
 		Pull request 0x00 (has to be unicast, no further data)
@@ -322,7 +322,7 @@ bit 0-3		unused (Skytraxx Windstation: number used volatile replay features)
 ------------
 
 Thermal (Type = 9)
-[recommended interval: floor((#neighbors/10 + 1) * 30s), if a thermal is detected]
+[recommended intervall: floor((#neighbors/10 + 1) * 30s), if a thermal is detected]
 
 [Byte 0-2]	Position of thermal	(Little Endian, 2-Complement)
 bit 0-23	Latitude 		(Absolute, see below)
@@ -348,12 +348,12 @@ bit 0-7		Value		in 360/256 deg
 
 ------------
 
-HW Info (Type = A) (replaces type 8)
-[recommended interval: very low, every 10min]
+HW Info (Type = A) (EXPERIMENTAL, will replace type 8)
+[recommended intervall: very low, every 10min]
 
 [Byte 0]	Header	(additional payload will be added in order 6 to 1, followed by Extended Header payload 7 to 0 once defined)
-bit 7		Ping-Pong Request (must be unicast and must not contain any data other then subheader, bits in header are considered as requests)
-bit 6		Hardware Subtype + Build Date (mandatory bytes 1-3)	
+bit 7		Ping-Pong Request (must be unicast and must not cotain any data other then subheader, bits in header are considered as requests)
+bit 6		Hardware Subtype + Build Date		
 bit 5		ICAO address (+3byte address)
 bit 4		Uptime (+2byte, time in minutes)
 bit 3		Rx RSSI (+1byte RSSI+50, +3byte FANET address, example: -30 -> -80dBm, only valid for uni cast requests, reply usually broiadcast)
@@ -371,13 +371,7 @@ Hardware Subtype + Build Date
 			0x01 Skytraxx 3.0
 			0x02 Syltraxx 2.1
 			0x03 Skytraxx Beacon
-			0x04 Skytraxx 4.0
-			0x05 Skytraxx 5
-			0x06 Skytraxx 5mini
 			0x10 Naviter Oudie 5
-			0x11 Naviter Blade
-			0x12 Naviter Oudie N
-			0x20 Skybean Strato
 		Manufacturer 0xFB:
 			0x01 Skytraxx WiFi base station
 [Byte 2-3]	Firmware Build Date
@@ -495,26 +489,10 @@ Manufacturer IDs:
 0x05		Windline
 0x06		Burnair.ch
 0x07		SoftRF
-0x08		GXAircom
-0x09		Airtribune
-0x0A		FLARM
-0x0B		FlyBeeper
 ...
-0x10		alfapilot
-0x11		FANET+ (incl FLARM. Currently Skytraxx, Naviter, and Skybean)
-...
-0x20		XC Tracer
-...
-0xCB		Cloudbuddy
-...
-0xDD		[reserved for compatibility issues]
-0xDE		[reserved for compatibility issues]
-0xDF		[reserved for compatibility issues]
+0x11		FANET+ (incl FLARM. Currently Skytraxx, and Naviter)
 ...
 0xE0		OGN Tracker
-0xE4		4aviation
-...
-0xF0		[reserved for compatibility issues]
 ...
 0xFA		Various
 		0x0001-0x00FF		GetroniX
@@ -523,3 +501,10 @@ Manufacturer IDs:
 0xFD		Unregistered Devices
 0xFE		[Multicast]
 0xFF		[reserved]
+
+Reserved for compatibility issues:
+0xDD
+0xDE
+0xDF
+0xF0
+0x20

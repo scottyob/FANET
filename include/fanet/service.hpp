@@ -260,7 +260,7 @@ namespace FANET
         ServicePayload &humidity(float humidity)
         {
             header |= 0x10;
-            humidityRaw = etl::clamp(static_cast<int>(roundf(humidity / 0.4f)), 0, 255);
+            humidityRaw = etl::clamp(static_cast<int>(roundf(humidity * 100.f / 4.f)), 0, 255);
             return *this;
         }
 
