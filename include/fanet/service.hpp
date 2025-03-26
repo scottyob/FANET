@@ -98,19 +98,6 @@ namespace FANET
             return header & 0x01;
         }
 
-        ServicePayload &setExtendedHeader(bool enabled)
-        {
-            if (enabled)
-            {
-                header |= 0x01;
-            }
-            else
-            {
-                header &= ~0x01;
-            }
-            return *this;
-        }
-
         /**
          * @brief Get the latitude in degrees.
          * @return The latitude in degrees.
@@ -260,7 +247,7 @@ namespace FANET
         ServicePayload &humidity(float humidity)
         {
             header |= 0x10;
-            humidityRaw = etl::clamp(static_cast<int>(roundf(humidity * 100.f / 4.f)), 0, 255);
+            humidityRaw = etl::clamp(static_cast<int>(roundf(humidity * 2.5f)), 0, 250);
             return *this;
         }
 

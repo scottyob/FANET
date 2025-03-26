@@ -121,6 +121,14 @@ TEST_CASE("ServicePayload Barometric ", "[single-file]")
     REQUIRE(payload.hasBarometric() == true);
 }
 
+TEST_CASE("ServicePayload humidity ", "[single-file]")
+{
+    ServicePayload payload;
+    payload.humidity(75);
+    REQUIRE(payload.humidity() == Catch::Approx(75).margin(0.4));
+    payload.humidity(102);
+    REQUIRE(payload.humidity() == Catch::Approx(100).margin(0.4));
+}
 
 TEST_CASE("ServicePayload serialize/deserialize empty", "[single-file]")
 {
@@ -138,11 +146,12 @@ TEST_CASE("ServicePayload serialize/deserialize altitude", "[single-file]")
     payload.windSpeed(12.6);
     payload.windHeading(123);
     payload.temperature(12.5);
-    payload.barometric(1013.01);
     payload.humidity(75);
+    payload.barometric(1013.02);
     auto result = createRadioPacket(payload);
     dumpHex(result);
-    REQUIRE(result == makeVector({0x78, 0x0F, 0x26, 0x51, 0x4B, 0x26, 0x07, 0x19, 0x57, 0x3F, 0x12, 0xBC, 0xE3, 0xBD, }));
+
+    REQUIRE(result == makeVector({0x78, 0x0F, 0x26, 0x51, 0x4B, 0x26, 0x07, 0x19, 0x57, 0x3F, 0x12, 0xBC, 0xE3, 0xBE, }));
 
     auto reader = createReader(result);
     auto received=ServicePayload::deserialize(reader);
@@ -152,6 +161,6 @@ TEST_CASE("ServicePayload serialize/deserialize altitude", "[single-file]")
     REQUIRE(received.windSpeed() == Catch::Approx(12.6).margin(1));
     REQUIRE(received.windHeading() == Catch::Approx(123).margin(1));    
     REQUIRE(received.temperature() == Catch::Approx(12.5).margin(0.5));
-    REQUIRE(received.barometric() == Catch::Approx(1013.01).margin(0.01));
+    REQUIRE(received.barometric() == Catch::Approx(1013.02).margin(0.01));
     REQUIRE(received.humidity()  == Catch::Approx(75).margin(0.4));
 }
