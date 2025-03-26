@@ -480,7 +480,7 @@ namespace FANET
             // Validate if there is time for any other frames
             // fmac.428
             auto airtimeMs = airtime.get(timeMs);
-            printf("Air time : %dms\n", airtimeMs);
+            // printf("Air time : %dms\n", airtimeMs);
             if (airtimeMs >= 900)
             {
                 return timeMs + MAC_DEFAULT_TX_BACKOFF;
