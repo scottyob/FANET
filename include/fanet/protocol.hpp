@@ -134,7 +134,6 @@ namespace FANET
                 [&other](auto block)
                 {
                     // frame.162
-//                    auto other = TxFrame{buffer};
                     if (block.source() != other.source()) {return false; }
                     if (block.data().size() != other.data().size())  {return false; }
                     if (block.destination() != other.destination())  {return false; }
@@ -142,8 +141,8 @@ namespace FANET
                     if (!etl::equal(block.payload(), other.payload()))  {return false; }
                     return true;
                 });
-
             // clang-format on
+
             if (it != txPool.end())
             {
                 return &(*it);
@@ -158,12 +157,12 @@ namespace FANET
          * @param destination The destination address of the acknowledged frames
          * @return The id if the package in the pool, 0 if nothing found or the packet did not have an id
          */
-        uint16_t removeDeleteAckedFrame(const Address &destination)
+        uint16_t removeDeleteAckedFrame(const Address &source)
         {
             uint16_t id = 0;
             for (auto it = txPool.begin(); it != txPool.end();)
             {
-                if (it->destination() == destination && it->ackType() != ExtendedHeader::AckType::NONE)
+                if (it->destination() == source && it->ackType() != ExtendedHeader::AckType::NONE)
                 {
                     id = it->id();
                     it = txPool.remove(it);
@@ -480,7 +479,9 @@ namespace FANET
 
             // Validate if there is time for any other frames
             // fmac.428
-            if (airtime.get(timeMs) >= 900)
+            auto airtimeMs = airtime.get(timeMs);
+            printf("Air time : %dms\n", airtimeMs);
+            if (airtimeMs >= 900)
             {
                 return timeMs + MAC_DEFAULT_TX_BACKOFF;
             }

@@ -25,7 +25,12 @@ namespace FANET
          * @brief Constructor that takes a uint32_t and splits it into manufacturerId and uniqueID.
          * @param asUintId The combined manufacturer and unique ID.
          */
-        constexpr explicit Address(uint32_t asUintId)
+        // constexpr explicit Address(uint32_t asUintId)
+        //     : Address(static_cast<uint8_t>((asUintId >> 16) & 0xFF), static_cast<uint16_t>(asUintId & 0xFFFF))
+        // {
+        // }
+
+        explicit Address(uint32_t asUintId)
             : Address(static_cast<uint8_t>((asUintId >> 16) & 0xFF), static_cast<uint16_t>(asUintId & 0xFFFF))
         {
         }
@@ -127,8 +132,6 @@ namespace FANET
             address.uniqueId = etl::reverse_bytes<uint16_t>(reader.read_unchecked<uint16_t>());
             return address;
         }
-
     };
 
-    
 }

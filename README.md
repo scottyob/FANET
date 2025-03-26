@@ -1,24 +1,68 @@
 # FANET Library
 
-FANET (Flying Ad-hoc Network) is a lightweight, embedded networking library designed for aerial vehicles and ground stations. It provides a robust protocol for communication between flying objects and ground stations.
+FANET (Flying Ad-hoc Network) is a lightweight, embedded networking well tested library designed for aerial vehicles and ground stations. It provides a robust protocol for communication between flying objects and ground stations.
 
-## Quick Start
+This library is a c++ implementation header only *no malloc* version designed to handle the full FANET protocol for embedded systems.
+
+The protocol was taking from https://github.com/3s1d/fanet-stm32 and a library was created without the radio integration, this makes
+it easer to pull this into your codebase.
+
+R. van Twisk <github@rvt.dds.nl>
+
+To run the tests you can use `./build.sh` However, since this is a header only library you can just include them in your project (use PlatformIO!) 
+
+## Quick Start of the required components:
 
 ```cpp
 #include "fanet/fanet.hpp"
 
 // Create a connector implementation
 class MyConnector : public FANET::Connector {
-    // Implement required methods...
+    private:
+        FANET::Protocol protocol;
+        Radio &myRadio; // Some form of implementation of your radio
+
+        /**
+         * @brief return a number of ms. Does not matter if it's from epoch, as long as it's monotonic.
+         */
+        uint32_t fanet_getTick() const override
+        {
+            return millis();
+        }
+
+        /**
+         * @brief send a frame to the network
+         * @param codingRate the coding rate to use
+         * @param data the data to send
+         * @return true if the frame was sent successfully
+         */
+        bool fanet_sendFrame(uint8_t codingRate, etl::span<const uint8_t> data) override
+        {
+            (void)data;
+            auto sendOk = myRadio.sendData(codingRate, data)
+            return sendOk;
+        }
+
+        /**
+         * @brief called when an ack is received of any frames you send directory to an destination 
+         * excluding tracking packets like Ground and Tracking. They are handled special.
+         * @param id the id of the ack
+         */
+        void fanet_ackReceived(uint16_t id) override
+        {
+            printf("fanet_ackReceived %d\n", id);
+        }
+
+    public:
+        MyConnector(Radio myRadio_) : protocol(this), myRadio(myRadio)
+        {
+            protocol.ownAddress(FANET::Address(0x01, 0x1234));
+        }
 };
 
 // Initialize the protocol
-MyConnector connector;
-FANET::Protocol protocol(&connector);
-
-// Set your device address
-protocol.ownAddress(FANET::Address(0x01, 0x1234)); // Manufacturer ID: 0x01, Device ID: 0x1234
-```
+// aRadio is some form of implementation of a radio system.
+MyConnector connector(aRadio);
 
 ## Core Components
 
@@ -30,17 +74,40 @@ The main protocol handler that manages packet transmission and reception. It han
 - Transmission scheduling
 
 ```cpp
+
 // Example: Sending a tracking packet
 FANET::TrackingPayload payload;
-payload.latitude(47.123).longitude(8.456).altitude(1000).speed(30.5);
+payload.latitude(ownshipPosition.lat)
+    .longitude(ownshipPosition.lon)
+    .altitude(ownshipPosition.heightEgm96)
+    .speed(ownshipPosition.groundSpeed * MS_TO_KPH)
+    .groundTrack(ownshipPosition.course)
+    .climbRate(ownshipPosition.verticalSpeed)
+    .tracking(true)
+    .turnRate(ownshipPosition.hTurnRate)
+    .aircraftType(mapAircraftCategory(openAceConfiguration.category));
 
-auto packet = FANET::Packet<1>()
-    .source(myAddress)
-    .payload(payload)
-    .singleHop();  // Request acknowledgment
+auto packet = FANET::Packet<1>() // Package size set to 1, not repoevant for TrackingPayload (this is on my TODO to improve)
+                    .payload(payload)
+                    .forward(true);
 
-protocol.sendPacket(packet);
+protocol.sendPacket(packet, 0); 
+
+
+FANET::NamePayload<20> namePayload;
+namePayload.name("OpenAce");
+auto packet = FANET::Packet<20>() // 20 bytes is fine to store OpenAce.
+                    .payload(namePayload)
+                    .destination(FANET::Address{0x08158C})
+                    .singleHop()
+                    .forward(true);
+
+protocol.sendPacket(packet, 12); // When received by 0x08158C and ack is send back, fanet_ackReceived will be called with the id of 12
+
 ```
+
+> [!NOTE] You are responsible for the timings of when to send packages. The connector will handle the scheduling and will keep track of airtime, eg if you are allowed to send the package. 
+
 
 ### Address (`address.hpp`)
 Represents a FANET device address consisting of:
@@ -48,7 +115,8 @@ Represents a FANET device address consisting of:
 - Unique Device ID (16 bits)
 
 ```cpp
-FANET::Address addr(0x01, 0x1234);  // Mfg: 0x01, Device: 0x1234
+// Example
+auto address = FANET::Address addr(0x01, 0x1234);  // Mfg: 0x01, Device: 0x1234
 ```
 
 ### Packet Types
@@ -56,14 +124,18 @@ FANET::Address addr(0x01, 0x1234);  // Mfg: 0x01, Device: 0x1234
 #### Tracking (`tracking.hpp`)
 Used for real-time position reporting of aircraft:
 - Position (lat/lon)
-- Altitude
+- Altitude 
 - Speed
 - Aircraft type
 - Climb rate
 - Ground track
 - Turn rate
 
+> [!NOTE]  
+> altitude is in meters EGM96, check your GPS what it's sending you! 
+
 ```cpp
+// Example
 FANET::TrackingPayload tracking;
 tracking.latitude(47.123)
         .longitude(8.456)
@@ -79,6 +151,7 @@ Used for ground-based objects:
 - Support status (need help, technical support, etc.)
 
 ```cpp
+// Example
 FANET::GroundTrackingPayload ground;
 ground.latitude(47.123)
       .longitude(8.456)
@@ -93,7 +166,9 @@ General-purpose message transmission:
 
 ```cpp
 FANET::MessagePayload<100> msg;  // 100-byte message capacity
-msg.message("Hello FANET!");
+etl::vector<uint8_t, 100> message;
+// Fill message
+msg.message(message);
 ```
 
 #### Name (`name.hpp`)
@@ -103,7 +178,7 @@ Device identification payload:
 
 ```cpp
 FANET::NamePayload<20> name;  // 20-char name capacity
-name.name("MyDevice");
+name.name("OpenACE");
 ```
 
 ### Supporting Classes
@@ -131,6 +206,8 @@ Memory management for packet transmission:
 - Efficient allocation/deallocation
 - Prevents fragmentation
 
+Used internally
+
 ## Advanced Features
 
 ### Packet Forwarding
@@ -150,13 +227,8 @@ Three acknowledgment modes:
 - Single-hop: Direct acknowledgment
 - Two-hop: Forwarded acknowledgment
 
-### Regional Compliance
-The Zone system ensures compliance with regional regulations:
-```cpp
-FANET::Zone zone;
-auto region = zone.findZone(latitude, longitude);
-// Configure radio with region.mac settings
-```
+> [!NOTE] Acknowledgments only happen for messages that are not tracking
+
 
 ## Implementation Requirements
 
@@ -183,7 +255,7 @@ public:
 - C++17 or later
 
 ## Notes
-- All memory allocations are static
+- All memory allocations are static, no malloc
 - Designed for embedded systems
 - Uses template metaprogramming for compile-time optimizations
 - Supports various payload sizes through templates
@@ -194,3 +266,4 @@ public:
 3. Monitor neighbor table size in dense networks
 4. Use appropriate acknowledgment modes based on reliability needs
 5. Consider airtime restrictions when sending frequent updates
+
