@@ -11,7 +11,7 @@ namespace FANET
      * Tracking payload
      * Messagetype : 1
      */
-    class TrackingPayload final : public Payloadbase
+    class TrackingPayload final
     {
     public:
         enum class AircraftType : uint8_t
@@ -325,7 +325,7 @@ namespace FANET
          * @brief Serialize the tracking payload to a bit stream.
          * @param writer The bit stream writer.
          */
-        virtual void serialize(etl::bit_stream_writer &writer) const override
+        virtual void serialize(etl::bit_stream_writer &writer) const
         {
             writer.write_unchecked(etl::reverse_bytes(latitudeRaw << 8), 24U);
             writer.write_unchecked(etl::reverse_bytes(longitudeRaw << 8), 24U);

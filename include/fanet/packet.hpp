@@ -10,11 +10,12 @@
 #include "message.hpp"
 #include "groundTracking.hpp"
 #include "extendedHeader.hpp"
+#include "service.hpp"
 
 namespace FANET
 {
     template <size_t MAXFRAMESIZE>
-    using PayloadVariant = etl::variant<TrackingPayload, NamePayload<MAXFRAMESIZE>, MessagePayload<MAXFRAMESIZE>, GroundTrackingPayload>;
+    using PayloadVariant = etl::variant<TrackingPayload, NamePayload<MAXFRAMESIZE>, MessagePayload<MAXFRAMESIZE>, GroundTrackingPayload, ServicePayload>;
 
     template <size_t MAXFRAMESIZE>
     class Packet
@@ -181,6 +182,13 @@ namespace FANET
         {
             header_.type(namePayload.type());
             payload_ = PayloadVariant<MAXFRAMESIZE>(namePayload);
+            return *this;
+        }
+
+        Packet &payload(const ServicePayload &servicePayload)
+        {
+            header_.type(servicePayload.type());
+            payload_ = PayloadVariant<MAXFRAMESIZE>(servicePayload);
             return *this;
         }
 

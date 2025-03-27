@@ -9,19 +9,6 @@ namespace FANET
     using RadioPacket = etl::vector<uint8_t, 255>;
 
     /**
-     * @brief Base class for all payloads.
-     */
-    class Payloadbase
-    {
-    public:
-        /**
-         * @brief Serialize the payload to a bit stream.
-         * @param writer The bit stream writer.
-         */
-        virtual void serialize(etl::bit_stream_writer &writer) const = 0;
-    };
-
-    /**
      * @brief Represents the header for FANET protocol.
      */
     class Header final

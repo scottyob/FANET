@@ -238,7 +238,9 @@ namespace FANET
             };
             auto cr = neighborTable_.size() < MAC_CODING48_THRESHOLD ? 8 : 5;
             uint16_t lengthBytes = frm->data().end() - frm->data().begin();
-            airtime.set(connector->fanet_getTick(), FANET::LoraAirtime(lengthBytes, 7, 250, cr - 4));
+            auto airTime = FANET::LoraAirtime(lengthBytes, 7, 250, cr - 4);
+    //        printf("Length bytes : length:%d %d\n", lengthBytes, airTime);
+            airtime.set(connector->fanet_getTick(), airTime);
             return ret{
                 connector->fanet_sendFrame(cr, frm->data()),
                 lengthBytes};
@@ -480,7 +482,7 @@ namespace FANET
             // Validate if there is time for any other frames
             // fmac.428
             auto airtimeMs = airtime.get(timeMs);
-            // printf("Air time : %dms\n", airtimeMs);
+            //printf("Air time : %dms\n", airtimeMs);
             if (airtimeMs >= 900)
             {
                 return timeMs + MAC_DEFAULT_TX_BACKOFF;

@@ -20,7 +20,7 @@ namespace FANET
      * @tparam MAXFRAMESIZE The size of the name payload.
      */
     template <size_t MAXFRAMESIZE>
-    using PayloadVariant = etl::variant<TrackingPayload, NamePayload<MAXFRAMESIZE>, MessagePayload<MAXFRAMESIZE>, GroundTrackingPayload>;
+    using PayloadVariant = etl::variant<TrackingPayload, NamePayload<MAXFRAMESIZE>, MessagePayload<MAXFRAMESIZE>, GroundTrackingPayload, ServicePayload>;
 
     /**
      * @brief A class to parse FANET packets from a byte buffer.

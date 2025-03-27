@@ -11,7 +11,7 @@ namespace FANET
      * Service payload
      * Messagetype : 4
      */
-    class ServicePayload final : public Payloadbase
+    class ServicePayload final
     {
     public:
         enum class ServiceType : uint8_t
@@ -267,7 +267,7 @@ namespace FANET
          * @brief Serialize the service payload to a bit stream.
          * @param writer The bit stream writer.
          */
-        void serialize(etl::bit_stream_writer &writer) const override
+        void serialize(etl::bit_stream_writer &writer) const
         {
             writer.write_unchecked(header);
             if (hasExtendedHeader())
