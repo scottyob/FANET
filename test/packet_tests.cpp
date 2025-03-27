@@ -92,3 +92,21 @@ TEST_CASE("Packet GroundTracking Payload", "[single-file]")
     pb.payload(payload);
     REQUIRE(pb.build() == makeVector({0x07, 0x12, 0x76, 0x98, 0x95, 0x8A, 0x4A, 0x81, 0x7F, 0xEE, 0x80, }));
 }
+
+TEST_CASE("Packet Service Payload", "[single-file]")
+{
+    ServicePayload payload;
+    payload.latitude(52.4123f);
+    payload.longitude(-24.6123f);
+    payload.humidity(50.0f);
+    payload.windGust(10.0f);
+    payload.windSpeed(10.0f);
+    payload.windHeading(10.0f);
+    payload.temperature(20.0f);
+    payload.barometric(1013.25f);
+    payload.battery(90);
+    Packet<1> pb;
+    pb.source(Address{0x129876});
+    pb.payload(payload);
+    REQUIRE(pb.build() == makeVector({0x04, 0x12, 0x76, 0x98, 0x7A, 0x95, 0x8A, 0x4A, 0x81, 0x7F, 0xEE, 0x28, 0x07, 0x32, 0x32, 0x7D, 0xC9, 0x16, 0x0E }));
+}

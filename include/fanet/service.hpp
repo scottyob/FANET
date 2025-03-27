@@ -39,6 +39,7 @@ namespace FANET
         uint8_t windGustRaw = 0;
         uint8_t humidityRaw = 0;
         uint16_t barometricRaw = 0;
+        uint8_t batteryRaw = 0;
 
     public:
         /**
@@ -96,6 +97,10 @@ namespace FANET
         bool hasExtendedHeader() const
         {
             return header & 0x01;
+        }
+        bool hasBattery() const
+        {
+            return header & 0x02;
         }
 
         /**
@@ -253,13 +258,26 @@ namespace FANET
 
         float barometric() const
         {
-            return barometricRaw / 100.0f + 430.0f;
+            return static_cast<float>(barometricRaw) / 10.0f + 430.0f;
         }
 
         ServicePayload &barometric(float barometric)
         {
             header |= 0x08;
-            barometricRaw = etl::clamp(static_cast<int>(roundf(barometric * 100.0f - 43000.f)), 0, 0xFFFF);
+            // If barometric was set in hunderds, then it would have been a lot nicer because 1085.35 would have become 0xFFFF
+            barometricRaw = etl::clamp(static_cast<int>(roundf((barometric - 430.f) * 10)), 0, 0x199A); 
+            return *this;
+        }
+
+        uint8_t battery() const
+        {
+            return roundf(static_cast<float>(batteryRaw * 6.66f));
+        }
+
+        ServicePayload &battery(uint8_t battery)
+        {
+            header |= 0x02;
+            batteryRaw = etl::clamp(static_cast<int>(roundf(battery / 6.66f)), 0, 0xF);
             return *this;
         }
 
@@ -299,7 +317,12 @@ namespace FANET
 
             if (hasBarometric())
             {
-                writer.write_unchecked<uint16_t>(barometricRaw);
+                writer.write_unchecked<uint16_t>(etl::reverse_bytes(barometricRaw));
+            }
+
+            if (hasBattery())
+            {
+                writer.write_unchecked(batteryRaw);
             }
         }
 
@@ -342,7 +365,12 @@ namespace FANET
 
             if (service.hasBarometric())
             {
-                service.barometricRaw = reader.read_unchecked<uint16_t>();
+                service.barometricRaw = etl::reverse_bytes(reader.read_unchecked<uint16_t>(16U));
+            }
+
+            if (service.hasBattery())
+            {
+                service.batteryRaw = reader.read_unchecked<uint8_t>();
             }
 
             return service;

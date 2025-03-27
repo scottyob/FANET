@@ -21,10 +21,12 @@ TEST_CASE("ServicePayload Default Constructor", "[ServicePayload]")
     REQUIRE(payload.windGust() == 0);
     REQUIRE(payload.humidity() == 0);
     REQUIRE(payload.barometric() == Catch::Approx(430.f).margin(0.01));
+    REQUIRE(payload.battery() == 0);
     REQUIRE(payload.hasWind() == false);
     REQUIRE(payload.hasHumidity() == false);
     REQUIRE(payload.hasBarometric() == false);
     REQUIRE(payload.hasTemperature() == false);
+    REQUIRE(payload.hasBattery() == false);
 }
 
 TEST_CASE("ServicePayload Latitude ", "[single-file]")
@@ -113,11 +115,11 @@ TEST_CASE("ServicePayload Barometric ", "[single-file]")
 {
     ServicePayload payload;
     payload.barometric(0);
-    REQUIRE(payload.barometric() == Catch::Approx(430).margin(0.01));
+    REQUIRE(payload.barometric() == Catch::Approx(430).margin(0.1));
     payload.barometric(2000);
-    REQUIRE(payload.barometric() == Catch::Approx(1085.36).margin(0.01));
+    REQUIRE(payload.barometric() == Catch::Approx(1085.35).margin(0.1));
     payload.barometric(1013.01);
-    REQUIRE(payload.barometric() == Catch::Approx(1013.01).margin(0.01));
+    REQUIRE(payload.barometric() == Catch::Approx(1013.01).margin(0.1));
     REQUIRE(payload.hasBarometric() == true);
 }
 
@@ -128,6 +130,20 @@ TEST_CASE("ServicePayload humidity ", "[single-file]")
     REQUIRE(payload.humidity() == Catch::Approx(75).margin(0.4));
     payload.humidity(102);
     REQUIRE(payload.humidity() == Catch::Approx(100).margin(0.4));
+}
+
+TEST_CASE("ServicePayload battery ", "[single-file]")
+{
+    ServicePayload payload;
+    payload.battery(0);
+    REQUIRE(payload.battery() == 0);
+    payload.battery(100);
+    REQUIRE(payload.battery() == 100);
+    payload.battery(15);
+    REQUIRE(payload.battery() == 13);
+    payload.battery(255);
+    REQUIRE(payload.battery() == 100);
+    REQUIRE(payload.hasBattery() == true);
 }
 
 TEST_CASE("ServicePayload serialize/deserialize empty", "[single-file]")
@@ -148,10 +164,10 @@ TEST_CASE("ServicePayload serialize/deserialize altitude", "[single-file]")
     payload.temperature(12.5);
     payload.humidity(75);
     payload.barometric(1013.02);
+    payload.battery(50);
     auto result = createRadioPacket(payload);
-    dumpHex(result);
 
-    REQUIRE(result == makeVector({0x78, 0x0F, 0x26, 0x51, 0x4B, 0x26, 0x07, 0x19, 0x57, 0x3F, 0x12, 0xBC, 0xE3, 0xBE, }));
+    REQUIRE(result == makeVector({0x7A, 0x0F, 0x26, 0x51, 0x4B, 0x26, 0x07, 0x19, 0x57, 0x3F, 0x12, 0xBC, 0xC6, 0x16, 0x08, }));
 
     auto reader = createReader(result);
     auto received=ServicePayload::deserialize(reader);
@@ -161,6 +177,7 @@ TEST_CASE("ServicePayload serialize/deserialize altitude", "[single-file]")
     REQUIRE(received.windSpeed() == Catch::Approx(12.6).margin(1));
     REQUIRE(received.windHeading() == Catch::Approx(123).margin(1));    
     REQUIRE(received.temperature() == Catch::Approx(12.5).margin(0.5));
-    REQUIRE(received.barometric() == Catch::Approx(1013.02).margin(0.01));
+    REQUIRE(received.barometric() == Catch::Approx(1013.02).margin(0.1));
     REQUIRE(received.humidity()  == Catch::Approx(75).margin(0.4));
+    REQUIRE(received.battery() == 53 );
 }
