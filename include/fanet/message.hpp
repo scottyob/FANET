@@ -108,25 +108,19 @@ namespace FANET
          * @param reader The bit stream reader.
          * @return The deserialized message payload.
          */
-        static const MessagePayload deserialize(etl::bit_stream_reader &reader)
+        static const MessagePayload deserialize(etl::bit_stream_reader &reader, size_t payloadSize)
         {
-            MessagePayload payload;
-            
-            auto subHeaderOpt = reader.read<uint8_t>();
-            if (!subHeaderOpt) {
+            MessagePayload payload;            
+            if (payloadSize < 1) {
                 return payload;
             }
-            
-            payload.subHeaderRaw = *subHeaderOpt;
-            
-            while (payload.messageRaw.size() < SIZE) {
-                auto byteOpt = reader.read<uint8_t>();
-                if (!byteOpt) {
-                    break;
-                }
-                payload.messageRaw.push_back(*byteOpt);
-            }
 
+            payload.subHeaderRaw = reader.read_unchecked<uint8_t>();
+            size_t messageBytesToRead = std::min(payloadSize - 1, SIZE);            
+            for (size_t i = 0; i < messageBytesToRead; ++i)
+            {
+                payload.messageRaw.push_back(reader.read_unchecked<uint8_t>());
+            }
             return payload;
         }
     };

@@ -58,16 +58,19 @@ namespace FANET
             reader.restart();
             header = Header::deserialize(reader);
             source = Address::deserialize(reader);
+            uint16_t headerSize=4;
             if (header.extended())
             {
                 optExtHeader = ExtendedHeader::deserialize(reader);
-
+                headerSize += 1;
                 if (optExtHeader->unicast())
                 {
                     optDestination = Address::deserialize(reader);
+                    headerSize += 3;
                 }
                 if (optExtHeader->signature())
                 {
+                    headerSize += 4;
                     optSignature = etl::reverse_bytes(reader.read_unchecked<uint32_t>());
                 }
             }
@@ -78,13 +81,16 @@ namespace FANET
                 optPayload = TrackingPayload::deserialize(reader);
                 break;
             case Header::MessageType::NAME:
-                optPayload = NamePayload<MAXFRAMESIZE>::deserialize(reader);
+                optPayload = NamePayload<MAXFRAMESIZE>::deserialize(reader, buffer.size() - headerSize);
                 break;
             case Header::MessageType::MESSAGE:
-                optPayload = MessagePayload<MAXFRAMESIZE>::deserialize(reader);
+                optPayload = MessagePayload<MAXFRAMESIZE>::deserialize(reader, buffer.size() - headerSize);
                 break;
             case Header::MessageType::GROUND_TRACKING:
                 optPayload = GroundTrackingPayload::deserialize(reader);
+                break;
+            case Header::MessageType::SERVICE:
+                optPayload = ServicePayload::deserialize(reader, buffer.size() - headerSize);
                 break;
             default:
                 break; // ACK or unsupported types

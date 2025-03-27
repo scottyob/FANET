@@ -172,6 +172,7 @@ namespace FANET
          */
         static const GroundTrackingPayload deserialize(etl::bit_stream_reader &reader)
         {
+
             GroundTrackingPayload payload;
             payload.latitudeRaw = etl::reverse_bytes(reader.read_unchecked<uint32_t>(24U)) >> 8;
             payload.longitudeRaw = etl::reverse_bytes(reader.read_unchecked<uint32_t>(24U)) >> 8;

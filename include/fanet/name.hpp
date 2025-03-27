@@ -67,17 +67,13 @@ namespace FANET
          * @param reader The bit stream reader.
          * @return The deserialized name payload.
          */
-        static const NamePayload deserialize(etl::bit_stream_reader &reader)
+        static const NamePayload deserialize(etl::bit_stream_reader &reader, size_t payloadSize)
         {
             NamePayload payload;
-            while (payload.nameRaw.size() < SIZE)
+            size_t bytesToRead = std::min(payloadSize, SIZE);
+            for (size_t i = 0; i < bytesToRead; ++i)
             {
-                auto byteOpt = reader.read<uint8_t>();
-                if (byteOpt == etl::nullopt)
-                {
-                    break;
-                }
-                payload.nameRaw.push_back(static_cast<char>(*byteOpt));
+                payload.nameRaw.push_back(static_cast<char>(reader.read_unchecked<uint8_t>()));
             }
             return payload;
         }

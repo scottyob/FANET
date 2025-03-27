@@ -14,22 +14,12 @@ namespace FANET
     class ServicePayload final
     {
     public:
-        enum class ServiceType : uint8_t
-        {
-            WEATHER = 0,  // Weather station
-            WINDSOCK = 1, // Windsock
-            DEM = 2,      // Digital Elevation Model
-            TEMP = 3,     // Temperature
-            HUMIDITY = 4, // Humidity
-            PRESSURE = 5, // Pressure
-            GATEWAY = 6   // Gateway
-        };
-
     private:
         uint8_t header = 0;
         uint8_t eHeader = 0;
         int32_t latitudeRaw = 0;
         int32_t longitudeRaw = 0;
+        bool bPosition = false;
         uint16_t altitudeRaw = 0;
         int8_t temperatureRaw = 0;
         uint8_t windHeadingRaw = 0;
@@ -56,9 +46,19 @@ namespace FANET
             return Header::MessageType::SERVICE;
         }
 
+        bool hasPosition() const
+        {
+            return bPosition;
+        }
+
         bool hasGateway() const
         {
             return header & 0x80;
+        }
+
+        bool remoteConfigSupport() const
+        {
+            return header & 0x04;
         }
 
         ServicePayload &setGateway(bool enabled)
@@ -130,6 +130,7 @@ namespace FANET
         {
             lat = etl::clamp(lat, -90.f, 90.f);
             latitudeRaw = roundf(lat * 93206.0f);
+            bPosition = true;
             return *this;
         }
 
@@ -142,6 +143,7 @@ namespace FANET
         {
             lon = etl::clamp(lon, -180.f, 180.f);
             longitudeRaw = roundf(lon * 46603.0f);
+            bPosition = true;
             return *this;
         }
 
@@ -265,7 +267,8 @@ namespace FANET
         {
             header |= 0x08;
             // If barometric was set in hunderds, then it would have been a lot nicer because 1085.35 would have become 0xFFFF
-            barometricRaw = etl::clamp(static_cast<int>(roundf((barometric - 430.f) * 10)), 0, 0x199A); 
+            // Apprantly, 1,084.8 hPa was the highest ever record in Tosontsengel, Mongolia on 19 December 200
+            barometricRaw = etl::clamp(static_cast<int>(roundf((barometric - 430.f) * 10)), 0, 0x199A);
             return *this;
         }
 
@@ -293,8 +296,11 @@ namespace FANET
                 writer.write_unchecked(eHeader);
             }
 
-            writer.write_unchecked(etl::reverse_bytes(latitudeRaw << 8), 24U);
-            writer.write_unchecked(etl::reverse_bytes(longitudeRaw << 8), 24U);
+            if ((header & 0b0111'1011) || hasPosition())
+            {
+                writer.write_unchecked(etl::reverse_bytes(latitudeRaw << 8), 24U);
+                writer.write_unchecked(etl::reverse_bytes(longitudeRaw << 8), 24U);
+            }
 
             if (hasTemperature())
             {
@@ -331,7 +337,7 @@ namespace FANET
          * @param reader The bit stream reader.
          * @return The deserialized service payload.
          */
-        static ServicePayload deserialize(etl::bit_stream_reader &reader)
+        static ServicePayload deserialize(etl::bit_stream_reader &reader, size_t payloadSize)
         {
             ServicePayload service;
 
@@ -341,8 +347,13 @@ namespace FANET
                 service.eHeader = reader.read_unchecked<uint8_t>();
             }
 
-            service.latitudeRaw = etl::reverse_bytes(reader.read_unchecked<uint32_t>(24U)) >> 8;
-            service.longitudeRaw = etl::reverse_bytes(reader.read_unchecked<uint32_t>(24U)) >> 8;
+            // Positionis only mandatory if no additional data will be added. 
+            // Broadcasting only the gateway/remote-cfg flag doesn't require pos information. 
+            if ((service.header & 0b0111'1011) || payloadSize >= 7)
+            {
+                service.latitudeRaw = etl::reverse_bytes(reader.read_unchecked<uint32_t>(24U)) >> 8;
+                service.longitudeRaw = etl::reverse_bytes(reader.read_unchecked<uint32_t>(24U)) >> 8;
+            }
 
             if (service.hasTemperature())
             {
@@ -376,5 +387,4 @@ namespace FANET
             return service;
         }
     };
-
 }
