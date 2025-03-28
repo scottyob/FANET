@@ -78,18 +78,10 @@ namespace FANET
         // This is like CSMA in the old protocol.
         uint32_t cmcaNextTx = 0;
         uint8_t carrierBackoffExp = MAC_TX_BACKOFF_EXP_MIN;
-        AirTime airtime;
+        Airtime airtime;
 
         // Connector for the application, e.g., the interface between the FANET protocol and the application
-        Connector* connector; 
-
-        /**
-         * @brief set airtime. Not used in production code and only during tests 0..1000 => 0%..100%
-         */
-        void airTime(uint16_t average)
-        {
-            airtime.average(average);
-        }
+        Connector *connector;
 
         /**
          * @brief Build an acknowledgment packet from an existing frame.
@@ -237,21 +229,15 @@ namespace FANET
                 uint16_t lengthBytes;
             };
             auto cr = neighborTable_.size() < MAC_CODING48_THRESHOLD ? 8 : 5;
-            uint16_t lengthBytes = frm->data().end() - frm->data().begin();
+            uint16_t lengthBytes = frm->data().size();
             auto airTime = FANET::LoraAirtime(lengthBytes, 7, 250, cr - 4);
-    //        printf("Length bytes : length:%d %d\n", lengthBytes, airTime);
             airtime.set(connector->fanet_getTick(), airTime);
+            printf("Length bytes : length:%d time:%d airTime:%d\n", lengthBytes, airTime, airtime.get(connector->fanet_getTick()));
             return ret{
                 connector->fanet_sendFrame(cr, frm->data()),
                 lengthBytes};
         }
 
-        /* device -> air */
-        // virtual bool is_broadcast_ready(int num_neighbors) = 0;
-        // virtual void broadcast_successful(int type) = 0;
-        // virtual Frame *get_frame() = 0;
-
-        // /* air -> device */
         void ackReceived(uint16_t id)
         {
             return connector->fanet_ackReceived(id);
@@ -262,7 +248,7 @@ namespace FANET
          * @brief Constructor for the Protocol class.
          * @param connector_ The connector interface for the application.
          */
-        Protocol(Connector* connector_) : connector(connector_)
+        Protocol(Connector *connector_) : connector(connector_)
         {
             init();
         }
@@ -284,6 +270,11 @@ namespace FANET
             ownAddress_ = adress;
         }
 
+        const Address &ownAddress()
+        {
+            return ownAddress_;
+        }
+
         const TxPool &pool() const
         {
             return txPool;
@@ -292,6 +283,14 @@ namespace FANET
         const NeighbourTable<FANET_MAX_NEIGHBORS> &neighborTable() const
         {
             return neighborTable_;
+        }
+
+        /**
+         * @brief Get the average airtime
+         */
+        uint32_t airTime() const
+        {
+            return airtime.getAverage();
         }
 
         /**
@@ -425,7 +424,7 @@ namespace FANET
                     /* add to list */
                     // fmac.368
                     // fmac.368
-                    auto txFrame = TxFrame<uint8_t>{etl::span<uint8_t>(const_cast<uint8_t*>(buffer.data()), buffer.size())}
+                    auto txFrame = TxFrame<uint8_t>{etl::span<uint8_t>(const_cast<uint8_t *>(buffer.data()), buffer.size())}
                                        .rssi(rssddBm)
                                        .numTx(numTx)
                                        .nextTx(nextTx)
@@ -482,7 +481,7 @@ namespace FANET
             // Validate if there is time for any other frames
             // fmac.428
             auto airtimeMs = airtime.get(timeMs);
-            //printf("Air time : %dms\n", airtimeMs);
+            // printf("Air time : %dms\n", airtimeMs);
             if (airtimeMs >= 900)
             {
                 return timeMs + MAC_DEFAULT_TX_BACKOFF;
