@@ -124,12 +124,12 @@ namespace FANET
      * @return The airtime in milliseconds.
      */
     static int32_t LoraAirtime(int size,
-                             int sf,
-                             int bw,
-                             int cr = 1, // Coding Rate in 1:4/5 2:4/6 3:4/7 4:4/8
-                             int lowDrOptimize = 2 /*2:auto 1:yes 0:no*/,
-                             bool explicitHeader = true,
-                             int preambleLength = 8)
+                               int sf,
+                               int bw,
+                               int cr = 1, // Coding Rate in 1:4/5 2:4/6 3:4/7 4:4/8
+                               int lowDrOptimize = 2 /*2:auto 1:yes 0:no*/,
+                               bool explicitHeader = true,
+                               int preambleLength = 8)
     {
         // Symbol time in milliseconds
         int32_t tSym = 1 << sf;
@@ -160,47 +160,55 @@ namespace FANET
      * This will never be a true average and always be an approximate
      * Used within the protocol class to decide if frames can be send or not
      */
-    class AirTime
+    class Airtime
     {
-    private:
-        static constexpr uint32_t maxAirTimeMs = 265 * 1000;
-        static constexpr uint32_t scaleFactor = 1024;
-        uint32_t lastUpdateTimeMs = 0;
-        uint32_t emaAirTimeMsAverage = 0;
-
-        uint32_t expDecayFactor(uint32_t elapsedTimeMs)
-        {
-            if (elapsedTimeMs >= maxAirTimeMs)
-            {
-                return 0;
-            }
-            return scaleFactor - (scaleFactor * elapsedTimeMs) / maxAirTimeMs;
-        }
-
-        void updateEMA(uint32_t currentTimeMs, uint16_t timeOnAirMs)
-        {
-            uint32_t elapsedTimeMs = currentTimeMs - lastUpdateTimeMs;
-            lastUpdateTimeMs = currentTimeMs;
-
-            uint32_t decay = expDecayFactor(elapsedTimeMs);
-            emaAirTimeMsAverage = (decay * emaAirTimeMsAverage + (scaleFactor - decay) * timeOnAirMs) / scaleFactor;
-        }
 
     public:
-        void average(uint16_t timeOnAirMsAverage) {
-            emaAirTimeMsAverage = timeOnAirMsAverage;
-        }
+        Airtime(uint32_t windowMs = 30000)
+            : totalAirtime(0), lastCleanupTime(0), windowMs(windowMs) {}
 
         void set(uint32_t currentTimeMs, uint16_t timeOnAirMs)
         {
-            updateEMA(currentTimeMs, timeOnAirMs);
+            cleanup(currentTimeMs);
+            totalAirtime += timeOnAirMs;
         }
 
         uint32_t get(uint32_t currentTimeMs)
         {
-            updateEMA(currentTimeMs, 0);
-            return emaAirTimeMsAverage;
+            cleanup(currentTimeMs);
+            return (totalAirtime * 1000) / windowMs; // Integer math, scaled by 1000
+        }
+
+        uint32_t getAverage() const
+        {
+            return (totalAirtime * 1000) / windowMs; // Integer math, scaled by 1000
+        }
+
+    private:
+        uint32_t totalAirtime;
+        uint32_t lastCleanupTime;
+        const uint32_t windowMs;
+
+        void cleanup(uint32_t currentTimeMs)
+        {
+            if (lastCleanupTime == 0)
+            {
+                lastCleanupTime = currentTimeMs;
+                return;
+            }
+
+            uint32_t elapsed = currentTimeMs - lastCleanupTime;
+            if (elapsed >= windowMs)
+            {
+                totalAirtime = 0;
+            }
+            else
+            {
+                uint32_t decayAmount = (totalAirtime * elapsed) / windowMs;
+                totalAirtime = (decayAmount > totalAirtime) ? 0 : (totalAirtime - decayAmount);
+            }
+
+            lastCleanupTime = currentTimeMs;
         }
     };
-
 }
