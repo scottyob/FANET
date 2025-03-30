@@ -232,7 +232,7 @@ namespace FANET
             uint16_t lengthBytes = frm->data().size();
             auto airTime = FANET::LoraAirtime(lengthBytes, 7, 250, cr - 4);
             airtime.set(connector->fanet_getTick(), airTime);
-            printf("Length bytes : length:%d time:%d airTime:%d\n", lengthBytes, airTime, airtime.get(connector->fanet_getTick()));
+            // printf("Length bytes : length:%d time:%d airTime:%d\n", lengthBytes, airTime, airtime.get(connector->fanet_getTick()));
             return ret{
                 connector->fanet_sendFrame(cr, frm->data()),
                 lengthBytes};
