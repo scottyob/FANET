@@ -296,7 +296,7 @@ namespace FANET
                 writer.write_unchecked(eHeader);
             }
 
-            if ((header & 0b0111'1011) || hasPosition())
+            if ((header & 0b01111011) || hasPosition())
             {
                 writer.write_unchecked(etl::reverse_bytes(latitudeRaw << 8), 24U);
                 writer.write_unchecked(etl::reverse_bytes(longitudeRaw << 8), 24U);
@@ -349,7 +349,7 @@ namespace FANET
 
             // Positionis only mandatory if no additional data will be added. 
             // Broadcasting only the gateway/remote-cfg flag doesn't require pos information. 
-            if ((service.header & 0b0111'1011) || payloadSize >= 7)
+            if ((service.header & 0b01111011) || payloadSize >= 7)
             {
                 service.latitudeRaw = etl::reverse_bytes(reader.read_unchecked<uint32_t>(24U)) >> 8;
                 service.longitudeRaw = etl::reverse_bytes(reader.read_unchecked<uint32_t>(24U)) >> 8;

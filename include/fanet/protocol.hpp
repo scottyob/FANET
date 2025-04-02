@@ -36,8 +36,8 @@ namespace FANET
 
         static constexpr int32_t MAC_TX_MINPREAMBLEHEADERTIME_MS = 15;
         static constexpr int32_t MAC_TX_TIMEPERBYTE_MS = 2;
-        static constexpr int32_t MAC_TX_ACKTIMEOUT = 1'000;
-        static constexpr int32_t MAC_TX_RETRANSMISSION_TIME = 1'000;
+        static constexpr int32_t MAC_TX_ACKTIMEOUT = 1000;
+        static constexpr int32_t MAC_TX_RETRANSMISSION_TIME = 1000;
         static constexpr uint8_t MAC_TX_RETRANSMISSION_RETRYS = 3;
         static constexpr int32_t MAC_TX_BACKOFF_EXP_MIN = 7;
         static constexpr int32_t MAC_TX_BACKOFF_EXP_MAX = 12;
@@ -49,7 +49,7 @@ namespace FANET
         static constexpr int32_t FANET_MAX_NEIGHBORS = 30;
 
         static constexpr int32_t APP_TYPE1OR7_MINTAU_MS = 250;
-        static constexpr int32_t APP_TYPE1OR7_TAU_MS = 5'000;
+        static constexpr int32_t APP_TYPE1OR7_TAU_MS = 5000;
 
         static constexpr int32_t FANET_CSMA_MIN = 20;
         static constexpr int32_t FANET_CSMA_MAX = 40;
@@ -57,7 +57,7 @@ namespace FANET
         static constexpr int32_t MAC_MAXNEIGHBORS_4_TRACKING_2HOP = 5;
         static constexpr int32_t MAC_CODING48_THRESHOLD = 8;
 
-        static constexpr int16_t MAC_DEFAULT_TX_BACKOFF = 1'000;
+        static constexpr int16_t MAC_DEFAULT_TX_BACKOFF = 1000;
 
         // Random number generator for random times
         etl::random_xorshift random; // XOR-Shift PRNG from ETL

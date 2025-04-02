@@ -7,7 +7,7 @@
 
 namespace FANET
 {
-    static constexpr uint32_t NEIGHBOR_MAX_TIMEOUT_MS = 4 * 60 * 1000 + 10'000; // 4min + 10sek
+    static constexpr uint32_t NEIGHBOR_MAX_TIMEOUT_MS = 4 * 60 * 1000 + 10000; // 4min + 10sek
 
     template <size_t FANET_MAX_NEIGHBORS>
     class NeighbourTable
