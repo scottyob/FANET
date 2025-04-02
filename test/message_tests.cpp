@@ -56,7 +56,8 @@ TEST_CASE("Message Serialize/Deserialize 0 size", "[single-file]")
 
 TEST_CASE("Message Serialize/Deserialize 1 size", "[single-file]")
 {
-    auto reader = createReader({0x41});
+    auto buffer = makeVector({0x41});
+    auto reader = createReader(buffer);
     auto received=MessagePayload<10>::deserialize(reader, 1);
     REQUIRE(received.message().size() == 0);
     REQUIRE(received.subHeader() == 0x41);
