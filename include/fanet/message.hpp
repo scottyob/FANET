@@ -108,9 +108,9 @@ namespace FANET
          * @param reader The bit stream reader.
          * @return The deserialized message payload.
          */
-        static const MessagePayload deserialize(etl::bit_stream_reader &reader, size_t payloadSize)
+        static const MessagePayload<SIZE> deserialize(etl::bit_stream_reader &reader, size_t payloadSize)
         {
-            MessagePayload payload;            
+            MessagePayload<SIZE> payload;            
             if (payloadSize < 1) {
                 return payload;
             }

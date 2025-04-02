@@ -29,7 +29,7 @@ TEST_CASE("Message Serialize/Deserialize ", "[single-file]")
     REQUIRE(result == makeVector({0x12, 0x01, 0x02, 0x03, 0x04, 0x18}));
 
     auto reader = createReader(result);
-    auto received=MessagePayload<100>::deserialize(reader);
+    auto received=MessagePayload<100>::deserialize(reader, 6);
     REQUIRE(received.subHeader() == 0x12);
     REQUIRE(received.message() == makeVector({0x01, 0x02, 0x03, 0x04, 0x18}));
 }
@@ -41,7 +41,7 @@ TEST_CASE("Message Serialize/Deserialize small MessagePayload size ", "[single-f
     auto result = createRadioPacket(payload);
 
     auto reader = createReader(result);
-    auto received=MessagePayload<10>::deserialize(reader);
+    auto received=MessagePayload<10>::deserialize(reader, 12);
     REQUIRE(received.message() == makeVector({0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A}));
 }
 
@@ -49,7 +49,7 @@ TEST_CASE("Message Serialize/Deserialize 0 size", "[single-file]")
 {
     etl::vector<uint8_t, 10> buffer;
     auto reader = createReader(buffer);
-    auto received=MessagePayload<10>::deserialize(reader);
+    auto received=MessagePayload<10>::deserialize(reader, 0);
     REQUIRE(received.message().size() == 0);
     REQUIRE(received.subHeader() == 0x00);
 }
@@ -57,7 +57,7 @@ TEST_CASE("Message Serialize/Deserialize 0 size", "[single-file]")
 TEST_CASE("Message Serialize/Deserialize 1 size", "[single-file]")
 {
     auto reader = createReader(makeVector({0x041}));
-    auto received=MessagePayload<10>::deserialize(reader);
+    auto received=MessagePayload<10>::deserialize(reader, 1);
     REQUIRE(received.message().size() == 0);
     REQUIRE(received.subHeader() == 0x41);
 }
