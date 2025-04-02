@@ -23,11 +23,15 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install Newer Compiler
-      run: sudo apt update && sudo apt install -y g++-10
+      run: sudo apt update && sudo apt install -y g++-10 lcov
       
-    - name: Install Coverage Tools
-      run: sudo apt install -y lcov genhtml
-      
+    - name: Show Default Compiler Version
+      run: |
+        echo "Default g++ version:"
+        g++ --version
+        echo "Default gcc version:"
+        gcc --version
+
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
