@@ -56,7 +56,7 @@ TEST_CASE("Message Serialize/Deserialize 0 size", "[single-file]")
 
 TEST_CASE("Message Serialize/Deserialize 1 size", "[single-file]")
 {
-    auto reader = createReader(makeVector({0x041}));
+    auto reader = createReader(makeVector({0x41}));
     auto received=MessagePayload<10>::deserialize(reader, 1);
     REQUIRE(received.message().size() == 0);
     printf("WHats in the buffer? %d", received.subHeader());
