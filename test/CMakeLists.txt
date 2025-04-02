@@ -19,12 +19,6 @@ FetchContent_Declare(
   GIT_TAG        20.39.4
 )
 
-# Configure ETL options before making it available
-set(ETL_BUILD_TESTS OFF CACHE BOOL "Disable ETL tests")
-set(ETL_BUILD_EXAMPLES OFF CACHE BOOL "Disable ETL examples")
-set(ETL_USER_DEFINED_TYPE_TRAITS OFF CACHE BOOL "Disable ETL user defined type traits")
-set(ETL_NO_UNITTEST_BUILD ON CACHE BOOL "Disable ETL unit test build")
-
 FetchContent_GetProperties(etl)
 if(NOT etl_POPULATED)
     FetchContent_Populate(etl)

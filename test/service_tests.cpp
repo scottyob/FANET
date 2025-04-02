@@ -170,7 +170,6 @@ TEST_CASE("ServicePayload serialize/deserialize altitude", "[single-file]")
     REQUIRE(result == makeVector({0x7A, 0x0F, 0x26, 0x51, 0x4B, 0x26, 0x07, 0x19, 0x57, 0x3F, 0x12, 0xBC, 0xC6, 0x16, 0x08, }));
 
     auto reader = createReader(result);
-    printf("============= %d", result.size());;
     auto received=ServicePayload::deserialize(reader, result.size());
     REQUIRE(received.latitude() == Catch::Approx(57.05812).margin(0.00001));
     REQUIRE(received.longitude() == Catch::Approx(10.05419).margin(0.00001));
