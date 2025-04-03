@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.18)
 project(tests)
 include(FetchContent)
-
+include(CTest)
+enable_testing()
 message(STATUS "Building tests.")
 
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
@@ -69,14 +70,7 @@ if(ENABLE_COVERAGE)
 
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Generating code coverage report.")
-
-  # add_custom_command(
-  #   TARGET ${name}
-  #   COMMENT "Run tests"
-  #   POST_BUILD
-  #   COMMAND ${name})
   endforeach()
-
 endif()
 
 if(NOT ENABLE_COVERAGE)
@@ -89,7 +83,7 @@ foreach(name ${TARGETS_IDIOMATIC_EXAMPLES})
       fanet::fanet
       etl)
 
-  add_test(NAME ${name} COMMAND ${name})
+  add_test(NAME ${name} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${name})
 endforeach()
 endif()
 
