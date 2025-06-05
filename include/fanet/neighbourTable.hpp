@@ -89,6 +89,8 @@ namespace FANET
                                                 return diff >  NEIGHBOR_MAX_TIMEOUT_MS; }),
                                 neighborTable.end());
         }
+
+        etl::vector<Neighbour, FANET_MAX_NEIGHBORS> get() const { return neighborTable; }
     };
 
 }

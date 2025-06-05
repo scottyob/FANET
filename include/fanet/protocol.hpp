@@ -31,7 +31,8 @@ namespace FANET
      */
     class Protocol
     {
-    protected:
+    public:
+
         static constexpr int32_t MAC_SLOT_MS = 20;
 
         static constexpr int32_t MAC_TX_MINPREAMBLEHEADERTIME_MS = 15;
@@ -59,6 +60,7 @@ namespace FANET
 
         static constexpr int16_t MAC_DEFAULT_TX_BACKOFF = 1000;
 
+    protected:
         // Random number generator for random times
         etl::random_xorshift random; // XOR-Shift PRNG from ETL
 
@@ -565,6 +567,7 @@ namespace FANET
                 it->print();
             }
         }
+        size_t txPoolSize() const { return static_cast<int>(txPool.getAllocatedBlocks().size()); }
     };
 
 };
