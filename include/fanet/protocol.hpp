@@ -32,7 +32,8 @@ namespace FANET
     class Protocol
     {
     public:
-        struct Stats {
+        struct Stats 
+        {
             uint32_t rx = 0;                 // All packets received
             uint32_t txSuccess = 0;          // All packets transmitted
             uint32_t txFailed = 0;           // An attempted transmission failed
@@ -449,7 +450,8 @@ namespace FANET
                     } else if(destination != Address{} && !neighborTable_.lastSeen(destination))
                     {
                         stats_.fwdNeighborDrp++; // Packets discarded due to no neighbor in neighbor table
-                    } else if(airtime.get(timeMs) > 500) {
+                    } else if(airtime.get(timeMs) > 500) 
+                    {
                         stats_.fwdDropAirtime++;
                     } else
                     {
