@@ -90,7 +90,9 @@ namespace FANET
                                 neighborTable_.end());
         }
 
-        const etl::vector<Neighbour, FANET_MAX_NEIGHBORS> &neighborTable() const { return neighborTable_; }
+        const etl::ivector<Neighbour> &neighborTable() const {
+          return neighborTable_;
+         }
     };
 
 }

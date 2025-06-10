@@ -48,6 +48,7 @@ namespace FANET
             uint32_t txAck = 0;              // Number of Acks sent
             uint32_t neighborTableSize = 0;  // Number of neighbors currently in our neighbor table
         };
+    protected:
 
         static constexpr int32_t MAC_SLOT_MS = 20;
 
@@ -76,7 +77,6 @@ namespace FANET
 
         static constexpr int16_t MAC_DEFAULT_TX_BACKOFF = 1000;
 
-    protected:
         // Random number generator for random times
         etl::random_xorshift random; // XOR-Shift PRNG from ETL
 
